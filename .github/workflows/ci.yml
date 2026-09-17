@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 併發：同一 ref 新 push 取消舊跑
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- 後端：單元 + 整合 + 跨 workspace 滲透(ISO-6) + agent 零信任(ZT-7) ---
+  api:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-postgres-pw
+      DB_NAME: calendar
+      DB_PASSWORD: ci-appuser-pw
+      JWT_SECRET: ci-secret-32bytes-minimum-value-xx
+      OPA_URL: http://localhost:8181
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-pw
+          POSTGRES_DB: calendar
+          TZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d calendar"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start OPA (policy decision point)
+        run: |
+          docker run -d --name opa -p 8181:8181 \
+            -v "${{ github.workspace }}/policies:/policies:ro" \
+            openpolicyagent/opa:latest-static \
+            run --server --addr 0.0.0.0:8181 /policies
+          # 等 OPA 就緒
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8181/health && break
+            sleep 1
+          done
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compose DB URLs
+        run: |
+          echo "DATABASE_URL=postgres://app_user:${DB_PASSWORD}@localhost:5432/${DB_NAME}" >> "$GITHUB_ENV"
+          echo "ADMIN_DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/${DB_NAME}" >> "$GITHUB_ENV"
+
+      - name: Migrate (建表 + RLS + app_user)
+        run: pnpm --filter @scal/api migrate
+
+      - name: Seed (ws-a / ws-b)
+        run: pnpm --filter @scal/api seed
+
+      - name: Typecheck (api)
+        run: pnpm --filter @scal/api exec tsc --noEmit
+
+      - name: Test (192：含 ISO-6 滲透 + ZT-7 零信任 + 資源/提醒端點 + NLP/Webhook + SSE 即時推播 + 站內對話 agent)
+        run: pnpm --filter @scal/api test
+
+  # --- 前端：型別 + production build ---
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck (web)
+        run: pnpm --filter @scal/web exec tsc --noEmit
+      - name: Build (web)
+        run: pnpm --filter @scal/web build

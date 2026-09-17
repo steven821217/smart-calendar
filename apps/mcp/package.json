@@ -1,0 +1,13 @@
+{
+  "name": "@scal/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Calendar MCP server (stdio) — thin launcher; implementation lives in @scal/api src/mcp/server.ts",
+  "scripts": {
+    "start": "pnpm --filter @scal/api exec tsx src/mcp/server.ts",
+    "dev": "pnpm --filter @scal/api exec tsx watch src/mcp/server.ts",
+    "start:http": "pnpm --filter @scal/api exec tsx src/mcp/http.ts",
+    "dev:http": "pnpm --filter @scal/api exec tsx watch src/mcp/http.ts"
+  }
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# env（含密碼／金鑰）——保留 .env.example 供參考
+.env
+.env.*
+!.env.example
+
+# 憑證／私鑰（gateway 自簽於執行期生成）
+*.crt
+*.key
+*.pem
+
+# 日誌／暫存
+*.log
+coverage/
+.DS_Store

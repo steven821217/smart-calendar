@@ -1,0 +1,21 @@
+name: smart-calendar
+
+# 開發疊加檔（選用）：把內網服務的埠開回 host，方便在 host 上跑 vitest / 直接除錯。
+# 用法：docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 正式部署請「不要」帶此檔（只留 gateway 對外）。
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+  opa:
+    ports:
+      - "127.0.0.1:8181:8181"
+  api:
+    ports:
+      - "127.0.0.1:3000:3000"
+  mcp:
+    ports:
+      - "127.0.0.1:3001:3001"

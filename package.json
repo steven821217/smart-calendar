@@ -1,0 +1,13 @@
+{
+  "name": "smart-calendar",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.1",
+  "scripts": {
+    "db:up": "docker compose up -d db redis",
+    "db:down": "docker compose down",
+    "migrate": "pnpm --filter @scal/api migrate",
+    "seed": "pnpm --filter @scal/api seed",
+    "test": "pnpm -r test"
+  }
+}
