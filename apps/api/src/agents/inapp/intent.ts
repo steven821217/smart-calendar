@@ -17,12 +17,12 @@ import type { ChatModel } from "../llm.js";
  *  3) model 回傳非法/例外 → 一律 fallback 規則結果（絕不卡死）。
  */
 
-export type Intent = "list_events" | "count_events" | "find_free" | "list_pending" | "schedule";
+export type Intent = "list_events" | "count_events" | "find_free" | "list_pending" | "list_members" | "schedule";
 
-const INTENTS: Intent[] = ["list_events", "count_events", "find_free", "list_pending", "schedule"];
+const INTENTS: Intent[] = ["list_events", "count_events", "find_free", "list_pending", "list_members", "schedule"];
 
 const IntentSchema = z.object({
-  intent: z.enum(["list_events", "count_events", "find_free", "list_pending", "schedule", "unknown"]),
+  intent: z.enum(["list_events", "count_events", "find_free", "list_pending", "list_members", "schedule", "unknown"]),
 });
 
 /** 規則分類：回 Intent 或 null（無法明確判定）。 */
@@ -44,6 +44,10 @@ export function classifyByRules(text: string): Intent | null {
   // count_events：數量 / 忙碌概覽
   if (/幾個|幾場|多少個?會|忙不忙|忙嗎|滿不滿|how many|count/.test(t)) {
     return "count_events";
+  }
+  // list_members：問團隊/群組成員名單（放在 list_events 之前，否則「有哪些人」會被會議查詢吃掉）
+  if (/有誰|是誰|哪些人|成員|組員|團隊裡?有|小隊有|隊員|member.*(有|是)|誰在.*(團隊|小隊|組)|我的\s*member/i.test(t)) {
+    return "list_members";
   }
   // list_events：查有哪些 / 下一個 / 接下來（放最後當較廣的兜底查詢）
   if (/有會議?嗎|有什麼|有哪些|有事嗎|行程|安排嗎|下一個|接下來|待辦|schedule\?|what.*meeting|any meeting|下個會/.test(t)) {
@@ -72,7 +76,7 @@ export async function classifyIntent(
         content:
           "你是意圖分類器。只輸出一個 intent，從這些選項擇一：" +
           "list_events(查詢某時段有哪些會議/行程)、count_events(問數量或忙不忙)、" +
-          "find_free(找空檔/有沒有空)、list_pending(待回覆的邀請)、schedule(要求實際安排/預約會議或資源)。" +
+          "find_free(找空檔/有沒有空)、list_pending(待回覆的邀請)、list_members(問團隊/群組有哪些成員)、schedule(要求實際安排/預約會議或資源)。" +
           "無法判斷時輸出 unknown。只做分類，不要解釋。",
       },
       { role: "human", content: text },

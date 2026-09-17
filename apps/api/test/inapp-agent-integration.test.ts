@@ -48,6 +48,11 @@ beforeAll(async () => {
   // ws-a 第二個 member：不 own CAL_A、不參與任何 INAPP 事件（用於個人隔離斷言）
   const u2 = (await admin.query(`INSERT INTO users(email,display_name) VALUES('inapp-iso2@example.com','ISO2') ON CONFLICT (email) DO UPDATE SET display_name='ISO2' RETURNING id`)).rows[0].id;
   MEM_A2 = (await admin.query(`INSERT INTO memberships(workspace_id,user_id,role) VALUES($1,$2,'member') ON CONFLICT (workspace_id,user_id) DO UPDATE SET role='member' RETURNING id`, [WS_A, u2])).rows[0].id;
+  // list_members 用群組：MEM_A 在「INAPP-隊」，MEM_A2 不在
+  await admin.query(`DELETE FROM groups WHERE workspace_id=$1 AND name='INAPP-隊'`, [WS_A]);
+  const gid = (await admin.query(`INSERT INTO groups(workspace_id,name,created_by) VALUES($1,'INAPP-隊',$2) RETURNING id`, [WS_A, MEM_A])).rows[0].id;
+  const uA = (await admin.query(`SELECT user_id FROM memberships WHERE id=$1`, [MEM_A])).rows[0].user_id;
+  await admin.query(`INSERT INTO group_members(workspace_id,group_id,user_id,role) VALUES($1,$2,$3,'leader') ON CONFLICT DO NOTHING`, [WS_A, gid, uA]);
 
   // 乾淨測試事件：ws-a 明天(11/13 台北)兩場；ws-b 明天一場（用於 ISO-3）
   await admin.query(`DELETE FROM events WHERE workspace_id IN ($1,$2) AND title LIKE 'INAPP-%'`, [WS_A, WS_B]);
@@ -73,6 +78,7 @@ afterAll(async () => {
   await admin.query(`DELETE FROM events WHERE title LIKE 'INAPP-%'`);
   await admin.query(`DELETE FROM resource_bookings WHERE workspace_id=$1 AND resource_id IN (SELECT id FROM resources WHERE name LIKE 'INAPP-%')`, [WS_A]);
   await admin.query(`DELETE FROM resources WHERE name LIKE 'INAPP-%'`);
+  await admin.query(`DELETE FROM groups WHERE name='INAPP-隊'`);
   await admin.end();
   await webhooksQueue.close();
 });
@@ -119,6 +125,22 @@ describe("ISO-3：查詢不跨 workspace", () => {
     const r = await runInAppAgent(authA2(), "明天有會議嗎", TZ, { model: stub, nowUtc: NOW });
     // INAPP-A-* 由 MEM_A own / 建立，MEM_A2 既非 owner 亦非 participant → 查不到
     expect(r.message).not.toContain("INAPP-A-會議");
+  });
+});
+
+describe("list_members（查團隊成員，個人隔離）", () => {
+  it("「我的member有誰」→ 回團隊成員名單，而非會議清單", async () => {
+    const r = await runInAppAgent(authA(), "我的member有誰", TZ, { model: stub, nowUtc: NOW });
+    expect(r.intent).toBe("list_members");
+    expect(r.message).toContain("INAPP-隊");
+    expect(r.message).not.toContain("會議/行程"); // 不是誤判成 list_events
+  });
+
+  it("不屬於任何團隊的 member → 查不到別人的團隊成員", async () => {
+    const authA2 = (): AuthContext => ({ sub: MEM_A2, workspace: WS_A, roles: ["member"] });
+    const r = await runInAppAgent(authA2(), "我的組員是誰", TZ, { model: stub, nowUtc: NOW });
+    expect(r.intent).toBe("list_members");
+    expect(r.message).not.toContain("INAPP-隊"); // 隔離：不在該團隊就看不到
   });
 });
 

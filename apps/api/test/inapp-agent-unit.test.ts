@@ -24,6 +24,10 @@ describe("意圖分類（規則優先）", () => {
     ["有沒有人約我還沒回覆", "list_pending"],
     ["幫我約產品團隊明天下午開會", "schedule"],
     ["訂週四的公務車", "schedule"],
+    ["我的member有誰", "list_members"],
+    ["我的組員是誰", "list_members"],
+    ["產品團隊有哪些人", "list_members"],
+    ["誰在Alpha小隊", "list_members"],
   ];
   for (const [text, expected] of cases) {
     it(`「${text}」→ ${expected}`, () => {

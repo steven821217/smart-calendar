@@ -59,6 +59,7 @@ export async function runInAppAgent(auth: AuthContext, text: string, tz: string,
   try {
     if (intent === "schedule") return await doSchedule(auth, trimmed, tz, now, deps.model, via);
     if (intent === "list_pending") return await answerListPending(auth, via, tz);
+    if (intent === "list_members") return await answerListMembers(auth, trimmed, via);
 
     // 查詢類：複雜問句走 14B QuerySpec 進階路徑，否則規則快路徑。
     if (looksComplex(trimmed)) {
@@ -194,6 +195,40 @@ async function answerFree(auth: AuthContext, text: string, tz: string, now: Date
   if (slots.length === 0) return { kind: "answer", intent: "find_free", via, message: `${win.label}找不到 1 小時的空檔。`, data: { window: win, slots: [] } };
   const lines = slots.map((s) => `• ${fmtDay(s.start_utc, tz)} ${fmtTime(s.start_utc, tz)}–${fmtTime(s.end_utc, tz)}`);
   return { kind: "answer", intent: "find_free", via, message: `${win.label}可用的空檔（1 小時）：\n${lines.join("\n")}`, data: { window: win, slots } };
+}
+
+/**
+ * 查團隊/群組成員（list_members）。個人隔離：只回「查詢者本人所屬」的群組成員，
+ * 查不到自己不屬於的團隊。可指名某群組（若本人也在該群組）。
+ */
+async function answerListMembers(auth: AuthContext, text: string, via: string): Promise<AgentReply> {
+  const { listGroups, listGroupMembers } = await import("../../groups/service.js");
+  const groups = await listGroups(auth.workspace);
+
+  // 找出「本人所屬」的群組（membership_id = auth.sub）
+  const mine: Array<{ id: string; name: string; members: { name: string; role: string }[] }> = [];
+  for (const g of groups) {
+    const gm = await listGroupMembers(auth.workspace, g.id);
+    const iAmIn = gm.some((m) => m.membership_id === auth.sub);
+    if (!iAmIn) continue; // 隔離：不屬於的群組不回
+    mine.push({
+      id: g.id, name: g.name,
+      members: gm.map((m) => ({ name: m.display_name ?? "(未命名)", role: m.role })),
+    });
+  }
+
+  // 若指名某群組，只回該群組（且本人須在其中，否則等同查不到）
+  const named = groups.find((g) => text.includes(g.name) && mine.some((x) => x.id === g.id));
+  const show = named ? mine.filter((x) => x.id === named.id) : mine;
+
+  if (show.length === 0) {
+    return { kind: "answer", intent: "list_members", via, message: "你目前沒有所屬的團隊，或查詢的團隊你不在其中。", data: { groups: [] } };
+  }
+  const blocks = show.map((g) => {
+    const lines = g.members.map((m) => `• ${m.name}${m.role === "leader" ? "（Leader）" : ""}`);
+    return `【${g.name}】\n${lines.join("\n")}`;
+  });
+  return { kind: "answer", intent: "list_members", via, message: `你所屬團隊的成員：\n${blocks.join("\n\n")}`, data: { groups: show } };
 }
 
 async function answerListPending(auth: AuthContext, via: string, tz: string): Promise<AgentReply> {
