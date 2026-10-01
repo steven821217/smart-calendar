@@ -17,3 +17,6 @@ build/
 *.log
 coverage/
 .DS_Store
+
+# 評測執行期產物（含 token）——結果檔本身要進版控
+/eval/.ctx.json

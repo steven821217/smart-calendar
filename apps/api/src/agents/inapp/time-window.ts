@@ -124,24 +124,52 @@ export function localHour(utcIso: string, tz: string): number {
  * 由 anchor / weekday 範圍算時間窗（後端算日期，14B 不算）。
  * 優先序：weekday 範圍（週三到週五）> anchor（today/this_week…）> 預設。
  */
+/**
+ * 指定時區某一天的 00:00 對應的 UTC 瞬時。
+ * 以該日中午為探針取得該時區的 UTC 偏移，避免用固定 +8 假設。
+ */
+function zonedDayStart(isoDate: string, tz: string): Date {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const probe = Date.UTC(y, m - 1, d, 12, 0, 0);
+  const local = new Date(new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).format(new Date(probe)).replace(", ", "T") + "Z");
+  const offsetMs = local.getTime() - probe;
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMs);
+}
+
 export function windowFromSpec(
   anchor: string,
   weekdayFrom: number | null,
   weekdayTo: number | null,
   tz: string,
   nowUtc = new Date(),
+  dateFrom?: string | null,
+  dateTo?: string | null,
 ): TimeWindow {
+  // 絕對日期優先（只有外部 agent 的 plan 會提供）：相對錨點表達不了「9/26 那天」。
+  if (dateFrom) {
+    const endDay = dateTo ?? dateFrom;
+    const from = zonedDayStart(dateFrom, tz);
+    const to = new Date(zonedDayStart(endDay, tz).getTime() + 86400_000);
+    return {
+      from_utc: from.toISOString(),
+      to_utc: to.toISOString(),
+      label: dateFrom === endDay ? dateFrom : `${dateFrom}~${endDay}`,
+    };
+  }
   // weekday 範圍：本週內從 weekdayFrom 到 weekdayTo（含）；anchor=next_week 則整體 +7 天
   if (weekdayFrom !== null) {
     const from = weekdayFrom;
     const to = weekdayTo ?? weekdayFrom;
     const curDow = localDow(nowUtc, tz);
-    const weekShift = anchor === "next_week" ? 7 : 0;
+    const weekShift = anchor === "next_week" ? 7 : anchor === "last_week" ? -7 : 0;
     const startOffset = from - curDow + weekShift;
     const endOffset = to - curDow + 1 + weekShift; // 含結束日整日
     const s = span(nowUtc, tz, startOffset, endOffset - startOffset, "");
     const names = ["一", "二", "三", "四", "五", "六", "日"];
-    const wk = anchor === "next_week" ? "下週" : "本週";
+    const wk = anchor === "next_week" ? "下週" : anchor === "last_week" ? "上週" : "本週";
     return { ...s, label: `${wk}週${names[from]}${to !== from ? `至週${names[to]}` : ""}` };
   }
   switch (anchor) {
@@ -150,22 +178,41 @@ export function windowFromSpec(
     case "day_after_tomorrow": return { ...span(nowUtc, tz, 2, 1, ""), label: label(nowUtc, tz, 2, "後天") };
     case "this_week": return span(nowUtc, tz, 0, 7 - localDow(nowUtc, tz), "這週");
     case "next_week": { const m = 7 - localDow(nowUtc, tz); return span(nowUtc, tz, m, 7, "下週"); }
+    // 上週：本週一往前 7 天起、共 7 天（完整的上一個自然週）。
+    // 沒有這個 case 時「上週有哪些會」會被降級成 this_week，等於「問 A 答 B」。
+    case "last_week": { const monday = -localDow(nowUtc, tz); return span(nowUtc, tz, monday - 7, 7, "上週"); }
     case "this_month": return monthWindow(tz, nowUtc);
+    case "next_month": return monthWindow(tz, nowUtc, 1);
     default: return defaultWindow(tz, nowUtc);
   }
 }
 
-/** 本月剩餘（今天起到月底）窗。 */
-function monthWindow(tz: string, nowUtc: Date): TimeWindow {
+/**
+ * 月窗。offsetMonths=0 → 本月「剩餘」（今天起到月底，符合「這個月還有什麼」的語意）；
+ * offsetMonths>=1 → 該月整月（下個月 1 日到月底）。
+ */
+function monthWindow(tz: string, nowUtc: Date, offsetMonths = 0): TimeWindow {
   const off = tzOffsetMinutes(nowUtc, tz);
   const local = new Date(nowUtc.getTime() + off * 60_000);
   const y = local.getUTCFullYear();
   const m = local.getUTCMonth();
-  const firstNextMonthMs = Date.UTC(y, m + 1, 1, 0, 0, 0);
-  const off2 = tzOffsetMinutes(new Date(firstNextMonthMs - off * 60_000), tz);
+  const toLocalMidnightUtc = (ms: number) => {
+    const approx = new Date(ms - off * 60_000);
+    const off2 = tzOffsetMinutes(approx, tz);
+    return new Date(ms - off2 * 60_000);
+  };
+  const endMs = Date.UTC(y, m + 1 + offsetMonths, 1, 0, 0, 0);
+  if (offsetMonths === 0) {
+    return {
+      from_utc: localMidnightUtc(nowUtc, tz, 0).toISOString(),
+      to_utc: toLocalMidnightUtc(endMs).toISOString(),
+      label: "這個月",
+    };
+  }
+  const startMs = Date.UTC(y, m + offsetMonths, 1, 0, 0, 0);
   return {
-    from_utc: localMidnightUtc(nowUtc, tz, 0).toISOString(),
-    to_utc: new Date(firstNextMonthMs - off2 * 60_000).toISOString(),
-    label: "這個月",
+    from_utc: toLocalMidnightUtc(startMs).toISOString(),
+    to_utc: toLocalMidnightUtc(endMs).toISOString(),
+    label: offsetMonths === 1 ? "下個月" : `${offsetMonths} 個月後`,
   };
 }

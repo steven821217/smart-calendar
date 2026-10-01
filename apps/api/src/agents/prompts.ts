@@ -19,12 +19,21 @@ export function coordinatorMessages(
       role: "system",
       content:
         "You are the Coordinator of an internal scheduling committee. " +
-        "Extract ONLY the attendees and resource needs from the user's task. " +
-        "Do NOT infer dates or times (handled elsewhere). " +
-        "Match each named attendee to EXACTLY ONE member from the roster by display name; " +
-        "if a name has no unique match, leave it out of attendee_ids and add it to unresolved_names. " +
-        "Resource kinds: 'vehicle' (公務車/car), 'room', 'equipment', or 'named'. " +
-        "Never invent member ids that are not in the roster.\n\nRoster:\n" +
+        "Extract the event title, the people the user explicitly named, and resource needs. " +
+        "Do NOT infer dates or times (handled elsewhere).\n" +
+        // event_title：先前沒有這個欄位，事件標題被塞成整句（「幫我安排今天晚上9：00打球」）。
+        "event_title: what the event IS, as a short noun phrase in the user's language. " +
+        "Strip politeness and scheduling verbs (幫我/請/安排/訂) and all time words. " +
+        "Examples: 『幫我安排今天晚上9:00打球』→『打球』；『明天下午跟林小明開會』→『開會』.\n" +
+        // person_mentions：與 attendee_ids 分離，讓「活動名稱」不會被當成人名。
+        "person_mentions: the display NAMES (not ids) of other people the user explicitly asked to include. " +
+        "Use [] when the user named nobody. Activities, places, resources, and generic roles " +
+        "(客戶/廠商/客人) are NOT people. Never include the requester themselves.\n" +
+        "attendee_ids: roster ids matching person_mentions, one id per matched name. " +
+        "If person_mentions is empty, attendee_ids MUST be empty too — a personal event with no " +
+        "attendees is normal. Never invite the whole roster and never invent ids.\n" +
+        "unresolved_names: named people with no unique roster match.\n" +
+        "Resource kinds: 'vehicle' (公務車/car), 'room', 'equipment', or 'named'.\n\nRoster:\n" +
         (roster || "(no members)"),
     },
     { role: "human", content: taskDescription },

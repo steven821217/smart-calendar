@@ -57,7 +57,7 @@ export function PendingInbox() {
       >
         <Bell className="h-4 w-4" aria-hidden />
         {count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground">
             {count > 9 ? "9+" : count}
           </span>
         )}
@@ -89,7 +89,7 @@ export function PendingInbox() {
                     <div className="font-medium">{p.title}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{fmt(p.start_utc, tz)}</div>
                     {p.location && <div className="text-xs text-muted-foreground">📍 {p.location}</div>}
-                    <div className="mt-1 text-[11px] text-violet-500">✨ AI 助理幫你安排，點此接受或婉拒</div>
+                    <div className="mt-1 text-xs text-violet-500">✨ AI 助理幫你安排，點此接受或婉拒</div>
                   </button>
                 </li>
               ))}

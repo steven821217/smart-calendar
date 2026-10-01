@@ -122,7 +122,9 @@ interface LoginResult {
   };
 }
 async function login(email: string): Promise<LoginResult> {
-  const r = await api<LoginResult>("POST", "/v1/auth/login", { body: { email } });
+  // 密碼由 seed 設定（SEED_DEMO_PASSWORD，預設 demo-password-1234）
+  const password = process.env.SEED_DEMO_PASSWORD ?? "demo-password-1234";
+  const r = await api<LoginResult>("POST", "/v1/auth/login", { body: { email, password } });
   if (r.status !== 200 || !r.body?.access_token) {
     throw new Error(`login(${email}) failed: HTTP ${r.status} ${fmt(r.body)}`);
   }

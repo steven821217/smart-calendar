@@ -10,6 +10,9 @@ export interface AuthContext {
 
 const SECRET = process.env.JWT_SECRET ?? "change-me-32bytes-minimum-secret-value";
 
+/** 一般使用者 access token 有效期：1 小時。OAuth/agent/action token 另有各自 TTL。 */
+export const USER_ACCESS_TOKEN_TTL_SEC = 60 * 60;
+
 function b64url(input: Buffer | string): string {
   return Buffer.from(input)
     .toString("base64")
@@ -19,7 +22,10 @@ function b64url(input: Buffer | string): string {
 }
 
 /** 簽發 HS256 JWT（本機用；正式改 RS256/JWKS） */
-export function signJwt(payload: Record<string, unknown>, expiresInSec = 900): string {
+export function signJwt(
+  payload: Record<string, unknown>,
+  expiresInSec = USER_ACCESS_TOKEN_TTL_SEC,
+): string {
   const header = { alg: "HS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const body = { ...payload, iat: now, exp: now + expiresInSec };

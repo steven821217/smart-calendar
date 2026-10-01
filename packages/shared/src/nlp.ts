@@ -142,21 +142,33 @@ export class RuleBasedParser implements Parser {
 
     // --- 時間 ---
     let h = 9, mi = 0, allDay = false, gotTime = false;
-    const t12 = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
-    const t24 = lower.match(/\b(\d{1,2}):(\d{2})\b/);
-    const cn = text.match(/(上午|下午|早上|晚上|中午)?\s*(\d{1,2})\s*[點点时]\s*(\d{1,2})?\s*分?/);
+    /**
+     * 時段詞套用到 12 小時制的時鐘讀數。
+     * 「晚上9:00」先前走 HH:MM 分支並完全忽略「晚上」，結果排到早上 09:00
+     *（實測使用者要求「今天晚上9:00打球」被排成 09:00–10:00）。
+     */
+    const applyMeridiem = (hour: number, mer?: string): number => {
+      if (!mer) return hour;
+      if ((mer === "下午" || mer === "晚上" || mer === "傍晚" || mer === "夜晚" || mer === "晚") && hour < 12) return hour + 12;
+      if (mer === "中午") return hour === 12 ? 12 : 12;
+      return hour; // 上午／早上／凌晨：時鐘讀數即為 24 小時制
+    };
+    // 全形冒號與全形數字正規化，否則「晚上9：00」整個匹配不到
+    const normalized = text.replace(/：/g, ":").replace(/[０-９]/g, (d) => String("０１２３４５６７８９".indexOf(d)));
+    const lowerNorm = normalized.toLowerCase();
+    const MER = "上午|下午|早上|晚上|傍晚|夜晚|中午";
+    const t12 = lowerNorm.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+    const t24 = normalized.match(new RegExp(`(${MER})?\\s*(\\d{1,2}):(\\d{2})`));
+    const cn = normalized.match(new RegExp(`(${MER})?\\s*(\\d{1,2})\\s*[點点时]\\s*(\\d{1,2})?\\s*分?`));
     if (t12) {
       h = +t12[1] % 12; if (t12[3] === "pm") h += 12;
       mi = t12[2] ? +t12[2] : 0; gotTime = true; confidence += 0.2;
     } else if (t24) {
-      h = +t24[1]; mi = +t24[2]; gotTime = true; confidence += 0.2;
+      h = applyMeridiem(+t24[2], t24[1]); mi = +t24[3]; gotTime = true; confidence += 0.2;
     } else if (cn) {
-      h = +cn[2]; mi = cn[3] ? +cn[3] : 0;
-      const mer = cn[1];
-      if ((mer === "下午" || mer === "晚上") && h < 12) h += 12;
-      if (mer === "中午") h = 12;
+      h = applyMeridiem(+cn[2], cn[1]); mi = cn[3] ? +cn[3] : 0;
       gotTime = true; confidence += 0.2;
-    } else if (/\ball day\b|全天|整天/.test(lower)) {
+    } else if (/\ball day\b|全天|整天/.test(lowerNorm)) {
       allDay = true; h = 0; mi = 0; gotTime = true; confidence += 0.1;
     } else {
       warnings.push("time not detected, defaulted to 09:00");
@@ -174,8 +186,8 @@ export class RuleBasedParser implements Parser {
       .replace(/\b\d{4}-\d{1,2}-\d{1,2}\b/g, "")
       .replace(/\b\d{1,2}\/\d{1,2}\b/g, "")
       .replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, "")
-      .replace(/\b\d{1,2}:\d{2}\b/g, "")
-      .replace(/(上午|下午|早上|晚上|中午)?\s*\d{1,2}\s*[點点时]\s*\d{0,2}\s*分?/g, "")
+      .replace(/(上午|下午|早上|晚上|傍晚|夜晚|中午)?\s*\d{1,2}\s*[:：]\s*\d{2}/g, "")
+      .replace(/(上午|下午|早上|晚上|傍晚|夜晚|中午)?\s*\d{1,2}\s*[點点时]\s*\d{0,2}\s*分?/g, "")
       .replace(/\b(tomorrow|today|day after tomorrow|every day|every week|all day|next|at|on|for|每天|每日|明天|明日|後天|今天|今日|全天|整天)\b/gi, "")
       .replace(/(每週|每周|每星期)/g, "")
       .replace(/\b\d+(?:\.\d+)?\s*(hours?|hrs?|minutes?|mins?)\b/gi, "")

@@ -67,7 +67,7 @@ export function AgentActivityDrawer({
                       <span className="font-medium">{e.action}</span>
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 text-[11px] font-medium",
+                          "rounded px-1.5 py-0.5 text-xs font-medium",
                           e.decision === "allow"
                             ? "bg-primary/10 text-foreground"
                             : "bg-destructive/15 text-destructive",

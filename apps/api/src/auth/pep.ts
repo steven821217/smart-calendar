@@ -16,7 +16,15 @@ function problem(status: number, title: string, detail?: string) {
 export function registerAuth(app: FastifyInstance) {
   app.addHook("onRequest", async (req: FastifyRequest, reply: FastifyReply) => {
     // /metrics：抓取端無 JWT，比照 /health 放行（安全靠 loopback/gateway 內網，見 observability/metrics.ts）。
-    if (req.url === "/health" || req.url === "/metrics" || req.url.startsWith("/v1/auth/") || req.url.startsWith("/v1/oauth/")) return;
+    // /.well-known/*：OAuth 自動發現 metadata 必須可匿名讀取（RFC 9728 / RFC 8414）。
+    if (
+      req.url === "/health" ||
+      req.url === "/metrics" ||
+      req.url.startsWith("/.well-known/") ||
+      req.url.startsWith("/v1/auth/") ||
+      req.url.startsWith("/v1/oauth/")
+    )
+      return;
     // RSVP：以 rsvp_token 自證身份（Member 免登入回覆），路由層自行驗章。
     if (req.method === "POST" && /^\/v1\/events\/[^/]+\/rsvp(\?.*)?$/.test(req.url)) return;
     // SSE 即時推播：EventSource 無法帶 Authorization header，token 走 query，路由層自驗（見 sse-routes.ts）。

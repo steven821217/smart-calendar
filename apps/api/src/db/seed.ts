@@ -1,14 +1,22 @@
 import pg from "pg";
+import { hashPassword } from "../auth/password.js";
 
 // seed 用 admin 連線（跨 workspace 建立示範資料，不受 RLS 限制以便建置 fixtures）
 const adminUrl =
   process.env.ADMIN_DATABASE_URL ??
   `postgres://postgres:${process.env.POSTGRES_PASSWORD ?? "change-me-postgres"}@localhost:5432/${process.env.DB_NAME ?? "calendar"}`;
 
+/**
+ * 示範帳號密碼：以 SEED_DEMO_PASSWORD 覆寫。
+ * ⚠️ 僅供本機／CI 示範資料使用；正式環境不應執行 seed，也不應沿用此密碼。
+ */
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "demo-password-1234";
+
 async function main() {
   const c = new pg.Client({ connectionString: adminUrl });
   await c.connect();
   try {
+    const passwordHash = await hashPassword(DEMO_PASSWORD);
     await c.query("BEGIN");
     // 冪等：先清示範資料
     await c.query(`DELETE FROM workspaces WHERE slug IN ('ws-a','ws-b')`);
@@ -20,8 +28,8 @@ async function main() {
         [name, slug],
       )).rows[0].id;
       const user = (await c.query(
-        `INSERT INTO users(email,display_name) VALUES($1,$2) RETURNING id`,
-        [email, name],
+        `INSERT INTO users(email,display_name,password_hash) VALUES($1,$2,$3) RETURNING id`,
+        [email, name, passwordHash],
       )).rows[0].id;
       const mem = (await c.query(
         `INSERT INTO memberships(workspace_id,user_id,role,timezone) VALUES($1,$2,'admin','Asia/Taipei') RETURNING id`,

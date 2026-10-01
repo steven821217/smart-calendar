@@ -110,21 +110,14 @@ export async function runCalendarCommittee(
   if (!calendarId) {
     return { ...state, status: "error", code: "no_calendar", message: "no calendar in workspace" };
   }
-  // 無資源需求時 booking_plan.resource_id 為空 → 無法建立 resource_bookings，
-  // 本委員會聚焦「借資源」情境：無資源時回 needs_decision 讓呼叫者用低階 tool 建純事件。
-  if (!state.booking_plan.resource_id) {
-    return {
-      ...state,
-      status: "needs_decision",
-      message: "no resource requested; use create_smart_event for a plain event",
-      result: { options: state.options },
-    };
-  }
+  // 無資源需求（打球、見客戶、保留工作時間）也要能落實成純事件：
+  // 先前這裡回 needs_decision 讓呼叫者「改用低階 tool」，但站內 agent 沒有那條路，
+  // 使用者按下確認後日曆上什麼也不會出現。
 
   try {
     const committed = await commitSchedulingPlan(ctx, {
       calendar_id: calendarId,
-      title: input.title ?? deriveTitle(input.task_description),
+      title: input.title ?? state.event_title ?? state.task_description.slice(0, 60),
       timezone: input.default_timezone ?? "UTC",
       actual_start_utc: state.booking_plan.actual_start_utc,
       actual_end_utc: state.booking_plan.actual_end_utc,
@@ -161,12 +154,15 @@ export async function runCalendarCommittee(
           end_utc: committed.event.end_utc,
           source: committed.event.source,
         },
-        booking: {
-          id: committed.booking.id,
-          resource_id: committed.booking.resource_id,
-          start_utc: committed.booking.start_utc,
-          end_utc: committed.booking.end_utc,
-        },
+        // 無資源需求的行程沒有 resource_booking
+        booking: committed.booking
+          ? {
+              id: committed.booking.id,
+              resource_id: committed.booking.resource_id,
+              start_utc: committed.booking.start_utc,
+              end_utc: committed.booking.end_utc,
+            }
+          : null,
         actual_usage: committed.actual_usage,
         reminders: committed.reminders.map((r) => ({
           id: r.id,

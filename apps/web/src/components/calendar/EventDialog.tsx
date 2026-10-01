@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { X, Sparkles } from "lucide-react";import { Button } from "@/components/ui/button";
+import { X, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AttendeePicker, ParticipantStatusList } from "@/components/calendar/AttendeePicker";
+import type { EventParticipant } from "@/lib/api";
 import { Spinner } from "@/components/ui/feedback";
 import { AvailabilityPanel } from "@/components/calendar/AvailabilityPanel";
 import { viewerWallToUtc, utcToViewer, dualTz } from "@/lib/time";
@@ -30,6 +33,8 @@ export interface EventFormValue {
   rrule: string | null;
   visibility: string;
   location: string | null;
+  /** 被邀請的 membership_id（不含自己；自己一律是發起人）。 */
+  attendees?: string[];
 }
 
 interface Props {
@@ -43,6 +48,10 @@ interface Props {
   originHint?: { start_utc: string; end_utc: string; event_tz: string };
   /** 事件來源（app | agent）；agent 表示由 AI 助理排程。 */
   source?: string;
+  /** 編輯既有事件時的與會者名單（含回覆狀態），用於顯示誰已接受／待回覆。 */
+  participants?: EventParticipant[];
+  /** 是否仍在載入與會者名單。 */
+  participantsLoading?: boolean;
   submitting?: boolean;
   error?: string | null;
   onCancel: () => void;
@@ -59,6 +68,8 @@ export function EventDialog({
   recurring,
   originHint,
   source,
+  participants,
+  participantsLoading,
   submitting,
   error,
   onCancel,
@@ -67,6 +78,24 @@ export function EventDialog({
 }: Props) {
   const [v, setV] = useState<EventFormValue>(initial);
   const [scope, setScope] = useState<Scope>("this");
+  // 與會者名單是非同步載入的。若不先把既有名單填進表單，使用者勾選任何一個人就會
+  // 把其他既有與會者當成「被移除」而刪掉（PUT 是取代語意）。
+  // 只在尚未初始化時填入，避免蓋掉使用者已做的勾選。
+  const attendeesInitialised = useRef(false);
+  useEffect(() => {
+    if (attendeesInitialised.current || !participants || participants.length === 0) return;
+    attendeesInitialised.current = true;
+    setV((prev) =>
+      prev.attendees === undefined
+        ? {
+            ...prev,
+            attendees: participants
+              .filter((p) => !p.is_organizer && p.member_id)
+              .map((p) => p.member_id as string),
+          }
+        : prev,
+    );
+  }, [participants]);
   const set = (patch: Partial<EventFormValue>) => setV((s) => ({ ...s, ...patch }));
   const reduce = useReducedMotion();
 
@@ -99,14 +128,19 @@ export function EventDialog({
       aria-label={mode === "create" ? "建立事件" : "編輯事件"}
       onClick={onCancel}
     >
+      {/*
+        高度受限 + 內容區可卷動：欄位變多（例如與會者清單）時，
+        確定／取消按鈕必須永遠按得到，不可被推出畫面外。
+        結構＝標頭固定｜內容捲動｜按鈕列釘底。
+      */}
       <motion.div
         initial={reduce ? false : { opacity: 0, scale: 0.97, y: 6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
-        className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-lg"
+        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border bg-card shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-base font-semibold">
             {mode === "create" ? "建立事件" : "編輯事件"}
           </h2>
@@ -115,14 +149,14 @@ export function EventDialog({
           </Button>
         </div>
 
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {mode === "edit" && source === "agent" && (
-          <div className="mb-4 flex items-center gap-2 rounded-md bg-violet-500/10 px-3 py-2 text-xs text-foreground ring-1 ring-inset ring-violet-500/30">
+          <div className="flex items-center gap-2 rounded-md bg-violet-500/10 px-3 py-2 text-xs text-foreground ring-1 ring-inset ring-violet-500/30">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" aria-hidden />
             此事件由 AI 助理透過排程委員會建立。你仍可在此編輯或改期。
           </div>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium" htmlFor="ev-title">
               標題
@@ -186,6 +220,24 @@ export function EventDialog({
               onChange={(e) => set({ location: e.target.value || null })}
             />
           </div>
+
+          <AttendeePicker
+            selected={v.attendees ?? []}
+            onChange={(attendees) => set({ attendees })}
+            existing={participants}
+            disabled={submitting}
+          />
+
+          {mode === "edit" && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">目前與會者</p>
+              {participantsLoading ? (
+                <p className="text-xs text-muted-foreground">載入中…</p>
+              ) : (
+                <ParticipantStatusList participants={participants ?? []} />
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -264,6 +316,9 @@ export function EventDialog({
             </div>
           )}
 
+          </div>
+
+          <div className="shrink-0 space-y-3 border-t border-border px-5 py-3">
           {error && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -291,6 +346,7 @@ export function EventDialog({
                 {mode === "create" ? "建立" : "儲存"}
               </Button>
             </div>
+          </div>
           </div>
         </form>
       </motion.div>

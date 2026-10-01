@@ -1,0 +1,258 @@
+{
+  "label": "v23-local-reasoning",
+  "meta": {
+    "commit": "f210221",
+    "dirty": true,
+    "runAt": "2026-09-22T08:09:59.485Z",
+    "fixture": "v2-multi-team",
+    "config": {
+      "iclK": "(container default)",
+      "embedModel": "(container default)",
+      "llmModel": "(container default)"
+    },
+    "gpu": [
+      {
+        "name": "qwen3:14b",
+        "gpuPercent": 100
+      },
+      {
+        "name": "embeddinggemma:latest",
+        "gpuPercent": 100
+      }
+    ]
+  },
+  "summary": {
+    "total": 12,
+    "passed": 3,
+    "leaks": 0,
+    "medianMs": 4176,
+    "p90Ms": 6804,
+    "maxMs": 9909
+  },
+  "results": [
+    {
+      "id": "EX01",
+      "tags": [
+        "reasoning",
+        "aggregate"
+      ],
+      "text": "明天哪一段空檔最長？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing \"10:00\""
+      ],
+      "ms": 3137,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "find_free",
+      "via": null,
+      "message": "明天（9/23）可用的空檔：\n• 9/23 09:00–14:00"
+    },
+    {
+      "id": "EX02",
+      "tags": [
+        "reasoning",
+        "aggregate"
+      ],
+      "text": "明天總共要開幾個小時的會？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing any of 3 小時|180 分鐘|3小時"
+      ],
+      "ms": 3719,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "count_events",
+      "via": null,
+      "message": "明天（9/23）共有 4 個會議/行程。"
+    },
+    {
+      "id": "EX03",
+      "tags": [
+        "reasoning",
+        "same-title"
+      ],
+      "text": "兩場專案同步會分別在哪個會議室？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing \"小會議室 C\""
+      ],
+      "ms": 6629,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "event_detail",
+      "via": null,
+      "message": "專案同步會\n9/27 11:00–12:00（約 60 分鐘）\n地點：小會議室 B"
+    },
+    {
+      "id": "EX04",
+      "tags": [
+        "reasoning",
+        "location"
+      ],
+      "text": "哪幾場會是在大會議室開的？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing \"客戶簡報排練\"",
+        "missing \"產品路線圖對焦\""
+      ],
+      "ms": 4176,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_events",
+      "via": null,
+      "message": "接下來 7 天有 19 個會議/行程：\n• 9/22 11:00 今日午前同步\n• 9/22 16:00 今日收尾檢查\n• 9/23 09:30 站立會\n• 9/23 14:00 產品週會\n• 9/23 15:30 小明發起的需求討論\n• 9/23 19:00 晚間客戶通話\n• 9/24 10:00 牙醫預約\n• 9/25 09:00 工程週會\n• 9/25 13:30 設計評審\n• 9/25 16:00 大文發起的架構討論\n…還有 9 筆"
+    },
+    {
+      "id": "EX05",
+      "tags": [
+        "reasoning",
+        "compare"
+      ],
+      "text": "我明天最忙的是上午還是下午？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing \"下午\""
+      ],
+      "ms": 3458,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "count_events",
+      "via": null,
+      "message": "明天（9/23）共有 4 個會議/行程。"
+    },
+    {
+      "id": "EX06",
+      "tags": [
+        "reasoning",
+        "event-anchored"
+      ],
+      "text": "牙醫預約那天我還有其他行程嗎？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing any of 沒有|只有|沒別的|僅"
+      ],
+      "ms": 6373,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_events",
+      "via": null,
+      "message": "接下來 7 天「牙醫預約」有 1 個會議/行程：\n• 9/24 10:00 牙醫預約"
+    },
+    {
+      "id": "EX07",
+      "tags": [
+        "reasoning",
+        "conflict"
+      ],
+      "text": "我有哪些行程時間互相重疊？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing any of 客戶簡報排練|美玲的設計交接|重疊"
+      ],
+      "ms": 3748,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_events",
+      "via": null,
+      "message": "接下來 7 天有 19 個會議/行程：\n• 9/22 11:00 今日午前同步\n• 9/22 16:00 今日收尾檢查\n• 9/23 09:30 站立會\n• 9/23 14:00 產品週會\n• 9/23 15:30 小明發起的需求討論\n• 9/23 19:00 晚間客戶通話\n• 9/24 10:00 牙醫預約\n• 9/25 09:00 工程週會\n• 9/25 13:30 設計評審\n• 9/25 16:00 大文發起的架構討論\n…還有 9 筆"
+    },
+    {
+      "id": "EX08",
+      "tags": [
+        "reasoning",
+        "pending"
+      ],
+      "text": "別人發起、還在等我回覆的會議有哪幾場？",
+      "timeSensitive": false,
+      "pass": true,
+      "failures": [],
+      "ms": 3793,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_pending",
+      "via": null,
+      "message": "你有 3 個待回覆的邀請：\n• 9/23 15:30 小明發起的需求討論\n• 9/25 16:00 大文發起的架構討論\n• 9/26 11:00 美玲的設計交接\n可到右上角鈴鐺一鍵回覆。"
+    },
+    {
+      "id": "EX09",
+      "tags": [
+        "reasoning",
+        "multi-team"
+      ],
+      "text": "我跟工程團隊成員有哪些共同會議？",
+      "timeSensitive": false,
+      "pass": true,
+      "failures": [],
+      "ms": 2414,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_events",
+      "via": null,
+      "message": "接下來 7 天工程團隊有 3 個會議/行程：\n• 9/25 09:00 工程週會\n• 9/25 17:00 一對一：王大文\n• 9/26 10:00 客戶簡報排練"
+    },
+    {
+      "id": "EX10",
+      "tags": [
+        "reasoning",
+        "aggregate"
+      ],
+      "text": "客戶簡報排練那天，排練前我有多少時間可以準備？",
+      "timeSensitive": false,
+      "pass": true,
+      "failures": [],
+      "ms": 9909,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "multiple",
+      "via": null,
+      "message": "【1】接下來 7 天有 19 個會議/行程：\n• 9/22 11:00 今日午前同步\n• 9/22 16:00 今日收尾檢查\n• 9/23 09:30 站立會\n• 9/23 14:00 產品週會\n• 9/23 15:30 小明發起的需求討論\n• 9/23 19:00 晚間客戶通話\n• 9/24 10:00 牙醫預約\n• 9/25 09:00 工程週會\n• 9/25 13:30 設計評審\n• 9/25 16:00 大文發起的架構討論\n…還有 9 筆\n\n【2】接下來 7 天可用的空檔：\n• 9/22 16:10–17:10\n• 9/23 09:10–11:10\n• 9/23 16:00–18:00"
+    },
+    {
+      "id": "EX11",
+      "tags": [
+        "reasoning",
+        "compare",
+        "same-title"
+      ],
+      "text": "季度預算檢討跟專案同步會是同一天嗎？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing any of 同一天|同天|是|同一日"
+      ],
+      "ms": 4826,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "event_detail",
+      "via": null,
+      "message": "專案同步會\n9/27 11:00–12:00（約 60 分鐘）\n地點：小會議室 B"
+    },
+    {
+      "id": "EX12",
+      "tags": [
+        "reasoning",
+        "multi-team"
+      ],
+      "text": "下週一之後的三場會分別跟誰有關？",
+      "timeSensitive": false,
+      "pass": false,
+      "failures": [
+        "missing any of 李國強|王大文|張美玲"
+      ],
+      "ms": 6804,
+      "toolError": false,
+      "kind": "answer",
+      "intent": "list_events",
+      "via": null,
+      "message": "下週週一有 3 個會議/行程：\n• 9/28 10:00 下週規劃會\n• 9/28 11:00 專案同步會\n• 9/28 16:00 週回顧"
+    }
+  ]
+}

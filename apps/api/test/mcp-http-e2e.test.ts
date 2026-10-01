@@ -103,13 +103,14 @@ function parse(res: unknown): { isError?: boolean; payload: Record<string, unkno
 }
 
 describe("MCP Streamable HTTP E2E", () => {
-  it("帶有效 Bearer → 列 tools（6 個）", async () => {
+  it("帶有效 Bearer → 列 tools", async () => {
     const { client, transport } = await connect(agentToken());
     try {
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name)).toContain("delegate_complex_scheduling");
       expect(tools.map((t) => t.name)).toContain("query_calendar");
-      expect(tools.length).toBe(7);
+      expect(tools.map((t) => t.name)).toContain("whoami");
+      expect(tools.length).toBe(10);
     } finally {
       await transport.close();
     }

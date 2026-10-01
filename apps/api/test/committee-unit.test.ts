@@ -90,14 +90,31 @@ describe("Committee — coordinator (E.1)", () => {
     expect(out.timeframe).toBeTruthy();
   });
 
-  it("解析不足（未解析名字且無 attendee）→ needs_clarification", async () => {
+  it("使用者指名的人解析不出來 → needs_clarification", async () => {
     const coord = makeCoordinator({
       ctx: ctx(),
-      model: stubModel({ attendee_ids: [], unresolved_names: ["Bob"], resources: [] }),
+      model: stubModel({
+        event_title: "開會", person_mentions: ["Bob"],
+        attendee_ids: [], unresolved_names: ["Bob"], resources: [],
+      }),
     });
     const out = await coord(baseState({ task_description: "跟 Bob 開會 明天下午", default_timezone: "Asia/Taipei" }));
     expect(out.status).toBe("needs_clarification");
     expect(out.message).toContain("Bob");
+  });
+
+  it("個人行程沒有與會者是正常的，不可要求補 member_id", async () => {
+    const coord = makeCoordinator({
+      ctx: ctx(),
+      model: stubModel({
+        // 模型把活動名稱誤放進 unresolved_names，但沒有把它當成人
+        event_title: "打球", person_mentions: [],
+        attendee_ids: [], unresolved_names: ["打球"], resources: [],
+      }),
+    });
+    const out = await coord(baseState({ task_description: "幫我安排今天晚上9:00打球", default_timezone: "Asia/Taipei" }));
+    expect(out.status).toBe("pending");
+    expect(out.event_title).toBe("打球");
   });
 
   it("LLM 幻覺 id（不在 roster）被過濾（ZT）", async () => {

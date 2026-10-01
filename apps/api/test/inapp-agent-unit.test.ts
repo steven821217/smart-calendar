@@ -152,6 +152,11 @@ describe("QuerySpec harness 清洗（對映真實 14B 髒輸出）", () => {
     expect(s.daypart).toBe("morning");
   });
 
+  it("daypart 雙向覆核：原文有『下午』但 model 漏填(any) → 補回 afternoon", () => {
+    const s = reconcileSpec({ ...base, daypart: "any" }, "明天下午有沒有空", GROUPS);
+    expect(s.daypart).toBe("afternoon");
+  });
+
   it("單日 anchor 優先：明天 + 14B 亂填 weekday 全範圍 → 清掉 weekday", () => {
     const s = reconcileSpec({ ...base, anchor: "tomorrow", weekday_from: 0, weekday_to: 6 }, "我明天第一個會議幾點", GROUPS);
     expect(s.anchor).toBe("tomorrow");
@@ -176,10 +181,111 @@ describe("QuerySpec harness 清洗（對映真實 14B 髒輸出）", () => {
     expect(s.group_name).toBe("產品團隊");
   });
 
+  it("group 核心詞覆核：『Alpha 那隊』+ 14B 殘詞 g=隊 → Alpha 小隊（不誤中含『隊』的產品團隊）", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "Alpha", group_name: "隊" }, "Alpha 那隊都有誰", GROUPS);
+    expect(s.group_name).toBe("Alpha 小隊");
+  });
+
+  it("group 殘詞不誤中：僅 g=隊、原文無任何群組核心詞 → 不強加群組", () => {
+    const s = reconcileSpec({ ...base, group_name: "隊" }, "那一隊有什麼事", GROUPS);
+    expect(s.group_name).toBeNull();
+  });
+
+  it("group 核心詞覆核：『產品那組』→ 對到 產品團隊", () => {
+    const s = reconcileSpec({ ...base, group_name: "組" }, "產品那組現在誰在跑", GROUPS);
+    expect(s.group_name).toBe("產品團隊");
+  });
+
+  it("範圍星期：『週三到週五』→ weekday_from=2, weekday_to=4（不丟範圍尾）", () => {
+    const s = reconcileSpec({ ...base, anchor: "this_week", weekday_from: 2, weekday_to: 2 }, "我這週三到週五有什麼會", GROUPS);
+    expect(s.weekday_from).toBe(2);
+    expect(s.weekday_to).toBe(4);
+  });
+
+  it("範圍星期：省略第二個『週』——『週一到三』→ 0..2", () => {
+    const s = reconcileSpec({ ...base }, "週一到三有哪些行程", GROUPS);
+    expect(s.weekday_from).toBe(0);
+    expect(s.weekday_to).toBe(2);
+  });
+
+  it("範圍星期：下週『下週二到週四』→ next_week + 1..3", () => {
+    const s = reconcileSpec({ ...base }, "下週二到週四忙不忙", GROUPS);
+    expect(s.anchor).toBe("next_week");
+    expect(s.weekday_from).toBe(1);
+    expect(s.weekday_to).toBe(3);
+  });
+
   it("不存在的 group → 併入 keyword，不強加假群組", () => {
     const s = reconcileSpec({ ...base, group_name: "不存在小組" }, "不存在小組的會", GROUPS);
     expect(s.group_name).toBeNull();
     expect(s.filter_keyword).toBe("不存在小組");
+  });
+
+  it("泛詞 keyword（『會』）→ 清成 null（14B 常把泛詞塞進 filter）", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "會" }, "明天有會議嗎", GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("整句被當成 keyword → 清成 null（否則會錯答「沒有行程」）", () => {
+    const injected = "明天有哪些行程'; DROP TABLE events; --";
+    const s = reconcileSpec({ ...base, filter_keyword: injected }, injected, GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("含問句用詞的 keyword（『有哪些』）→ 清成 null", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "有哪些會" }, "明天有哪些會", GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("含引號/分號等注入樣式字元的 keyword → 清成 null", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "客戶'; --" }, "找客戶'; -- 的會", GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("正常的長標題關鍵字仍保留（不過度清洗）", () => {
+    const s = reconcileSpec(
+      { ...base, filter_keyword: "產品週會" },
+      "這個月還有幾個產品週會要開呢",
+      GROUPS,
+    );
+    expect(s.filter_keyword).toBe("產品週會");
+  });
+
+  it("日期／時段詞被當 keyword → 清成 null（否則錯答「沒有行程」）", () => {
+    for (const [kw, text] of [
+      ["明天的安排", "不好意思想問一下我明天的安排"],
+      ["明日", "明日の予定は？"],
+      ["晚上", "今天晚上有安排嗎"],
+      ["中午", "明天中午有空嗎"],
+      ["這週的行程", "幫我看一下這週的行程"],
+      ["最後一個行程", "明天最後一個行程是什麼"],
+      ["最早的會", "明天最早的會是幾點"],
+      ["第一個會議", "明天第一個會議是什麼"],
+    ] as const) {
+      const s = reconcileSpec({ ...base, filter_keyword: kw }, text, GROUPS);
+      expect(s.filter_keyword, `kw=${kw}`).toBeNull();
+    }
+  });
+
+  it("佔位符 keyword（『X』）→ 清成 null", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "X" }, "這組由誰在跑", GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("原文未出現的幻想 keyword → 清成 null", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "客戶" }, "明天有什麼會", GROUPS);
+    expect(s.filter_keyword).toBeNull();
+  });
+
+  it("真實 keyword（原文出現的『客戶』）→ 保留", () => {
+    const s = reconcileSpec({ ...base, filter_keyword: "客戶" }, "跟客戶的會有哪些", GROUPS);
+    expect(s.filter_keyword).toBe("客戶");
+  });
+
+  it("誤判 group『行程』併入 keyword 後仍被雜訊過濾清掉", () => {
+    const s = reconcileSpec({ ...base, group_name: "行程" }, "明天的行程", GROUPS);
+    expect(s.group_name).toBeNull();
+    expect(s.filter_keyword).toBeNull();
   });
 });
 
@@ -197,5 +303,40 @@ describe("windowFromSpec 下週單一星期偏移", () => {
     const w = windowFromSpec("this_week", 4, 4, TZ2, NOW2);
     expect(w.label).toBe("本週週五");
     expect(w.from_utc).toBe("2026-09-17T16:00:00.000Z");
+  });
+});
+
+describe("時間錨點：上週 / 下個月（避免問 A 答 B）", () => {
+  const TZ = "Asia/Taipei";
+  const GROUPS = ["產品團隊", "Alpha 小隊"];
+  const base: QuerySpec = normalizeSpec({ intent: "list" });
+  const NOW = new Date("2026-09-18T02:00:00Z"); // 2026-09-18 10:00 台北（週五）
+
+  it("上週 → 完整的上一個自然週，且整段落在現在之前", () => {
+    const w = windowFromSpec("last_week", null, null, TZ, NOW);
+    expect(w.label).toBe("上週");
+    expect(+new Date(w.to_utc)).toBeLessThanOrEqual(+NOW);
+    // 7 天
+    expect((+new Date(w.to_utc) - +new Date(w.from_utc)) / 86_400_000).toBeCloseTo(7, 1);
+  });
+
+  it("下個月 → 整個下個月，且起點在現在之後", () => {
+    const w = windowFromSpec("next_month", null, null, TZ, NOW);
+    expect(w.label).toBe("下個月");
+    expect(+new Date(w.from_utc)).toBeGreaterThan(+NOW);
+    const days = (+new Date(w.to_utc) - +new Date(w.from_utc)) / 86_400_000;
+    expect(days).toBeGreaterThanOrEqual(28);
+    expect(days).toBeLessThanOrEqual(31);
+  });
+
+  it("這個月仍是「剩餘」語意（今天起算）", () => {
+    const w = windowFromSpec("this_month", null, null, TZ, NOW);
+    expect(w.label).toBe("這個月");
+    expect(+new Date(w.from_utc)).toBeLessThanOrEqual(+NOW);
+  });
+
+  it("規則錨點：『上週』『下個月』字面可被解析（LLM 不可用時也對）", () => {
+    expect(reconcileSpec({ ...base }, "上週有哪些會", GROUPS).anchor).toBe("last_week");
+    expect(reconcileSpec({ ...base }, "下個月有什麼行程", GROUPS).anchor).toBe("next_month");
   });
 });

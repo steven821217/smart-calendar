@@ -159,12 +159,15 @@ export async function toolDelegateComplexScheduling(
           end_utc: committed.event.end_utc,
           source: committed.event.source,
         },
-        booking: {
-          id: committed.booking.id,
-          resource_id: committed.booking.resource_id,
-          start_utc: committed.booking.start_utc,
-          end_utc: committed.booking.end_utc,
-        },
+        // 無資源需求的行程沒有 resource_booking
+        booking: committed.booking
+          ? {
+              id: committed.booking.id,
+              resource_id: committed.booking.resource_id,
+              start_utc: committed.booking.start_utc,
+              end_utc: committed.booking.end_utc,
+            }
+          : null,
         actual_usage: committed.actual_usage,
         reminders: committed.reminders.map((r) => ({ id: r.id, lead_minutes: r.lead_minutes, channel: r.channel })),
         rsvp_invitations: committed.rsvp_invitations,

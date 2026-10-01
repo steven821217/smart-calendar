@@ -19,8 +19,19 @@ beforeAll(async () => {
   const admin = adminClient();
   await admin.connect();
   WS = (await admin.query(`SELECT id FROM workspaces WHERE slug='ws-a'`)).rows[0].id;
-  CAL = (await admin.query(`SELECT id FROM calendars WHERE workspace_id=$1 LIMIT 1`, [WS])).rows[0].id;
-  MEM = (await admin.query(`SELECT id FROM memberships WHERE workspace_id=$1 LIMIT 1`, [WS])).rows[0].id;
+  // ws-a 內可能有多個成員/行事曆（其他測試 fixture 留下的）。
+  // 提醒端點有「本人隔離」核對（只有事件的行事曆擁有者或參與者看得到），
+  // 故此處必須讓 MEM 就是 CAL 的擁有者，否則列表會（正確地）回 404。
+  {
+    const row = (
+      await admin.query(
+        `SELECT id, owner_id FROM calendars WHERE workspace_id=$1 ORDER BY created_at LIMIT 1`,
+        [WS],
+      )
+    ).rows[0];
+    CAL = row.id;
+    MEM = row.owner_id;
+  }
   // 單次事件（未來），供設提醒 → 會排 delayed job
   EVENT = (await admin.query(
     `INSERT INTO events(workspace_id,calendar_id,title,start_utc,end_utc,timezone,created_by)

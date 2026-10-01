@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { ReminderInput } from "@scal/shared";
 import { enforce } from "../auth/pep.js";
-import { getEvent } from "../events/service.js";
+import { getEvent, memberCanSeeEvent } from "../events/service.js";
 import { listReminders, createReminder, deleteReminder } from "./service.js";
 
 function problem(status: number, title: string, detail?: string) {
@@ -22,6 +22,11 @@ export function registerReminderRoutes(app: FastifyInstance) {
     if (!(await enforce(req, reply, "event.read", {
       type: "event", workspace: auth.workspace, owner_id: ev.created_by, visibility: ev.visibility,
     }))) return;
+    // 個人隔離：OPA 對 visibility='busy'（預設值）放行，故再核對本人是否看得到該事件，
+    // 否則任何成員拿到 event id 就能列出別人事件的提醒設定（含被提醒的 member_id）。
+    if (!(await memberCanSeeEvent(auth.workspace, auth.sub, req.params.id))) {
+      return reply.code(404).send(problem(404, "not-found"));
+    }
     return { reminders: await listReminders(auth.workspace, req.params.id) };
   });
 

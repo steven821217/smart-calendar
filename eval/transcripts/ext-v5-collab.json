@@ -1,0 +1,2065 @@
+{
+  "entries": {
+    "EX01": {
+      "calls": [
+        {
+          "ms": 27,
+          "tool": "calendar_query",
+          "args": {
+            "question": "明天哪一段空檔最長？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "extremum_over_derived",
+                  "needs": "先算出每段衍生量（如空檔長度）再取極值"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（先算出每段衍生量（如空檔長度）再取極值），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-22T16:00:00.116Z",
+                "to_utc": "2026-09-23T16:00:00.116Z",
+                "label": "明天（9/23）",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 4,
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "明天（2026-09-23）最長的空檔是 10:00 到 14:00，共 4 小時。"
+    },
+    "EX02": {
+      "calls": [
+        {
+          "ms": 28,
+          "tool": "calendar_query",
+          "args": {
+            "question": "明天總共要開幾個小時的會？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "aggregation",
+                  "needs": "跨多筆行程求和或平均"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（跨多筆行程求和或平均），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-22T16:00:00.391Z",
+                "to_utc": "2026-09-23T16:00:00.391Z",
+                "label": "明天（9/23）",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 4,
+              "subject_keyword": "小時的會",
+              "subject_matches": [],
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "明天（2026-09-23）總共要開 3 小時的會。"
+    },
+    "EX03": {
+      "calls": [
+        {
+          "ms": 27,
+          "tool": "calendar_query",
+          "args": {
+            "question": "兩場專案同步會分別在哪個會議室？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "cross_entity_enumeration",
+                  "needs": "對多個實體逐一取細節再併列"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（對多個實體逐一取細節再併列），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-21T16:00:00.307Z",
+                "to_utc": "2026-09-28T16:00:00.307Z",
+                "label": "接下來 7 天",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "558ae73f-3a1a-43db-8d19-c778e1803ea0",
+                  "title": "今日午前同步",
+                  "start_utc": "2026-09-22T03:00:00.000Z",
+                  "end_utc": "2026-09-22T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/22 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b233af10-a1d0-433a-b18e-4d39e8d3bf08",
+                  "title": "今日收尾檢查",
+                  "start_utc": "2026-09-22T08:00:00.000Z",
+                  "end_utc": "2026-09-22T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/22 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null,
+                  "local_start": "9/24 10:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-24"
+                },
+                {
+                  "event_id": "96f61f55-330e-4845-8cf5-b930913756be",
+                  "title": "工程週會",
+                  "start_utc": "2026-09-25T01:00:00.000Z",
+                  "end_utc": "2026-09-25T02:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 A",
+                  "local_start": "9/25 09:00",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "9c31259b-edc4-4daf-88ab-5fbf724a8497",
+                  "title": "設計評審",
+                  "start_utc": "2026-09-25T05:30:00.000Z",
+                  "end_utc": "2026-09-25T06:15:00.000Z",
+                  "duration_minutes": 45,
+                  "location": "設計棚",
+                  "local_start": "9/25 13:30",
+                  "local_end": "14:15",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "5997dffe-46b0-4582-bf60-f61f1b2d7f58",
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "end_utc": "2026-09-25T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "a36536af-3c63-43ea-b697-ccdcd86619b7",
+                  "title": "一對一：王大文",
+                  "start_utc": "2026-09-25T09:00:00.000Z",
+                  "end_utc": "2026-09-25T09:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 17:00",
+                  "local_end": "17:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室",
+                  "local_start": "9/26 10:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "973e3485-9752-4fe5-aebf-dc4f1b73ce18",
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "end_utc": "2026-09-26T03:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/26 11:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "3d6e9daf-1227-4348-a609-759c38f41a1f",
+                  "title": "招募面談",
+                  "start_utc": "2026-09-26T07:00:00.000Z",
+                  "end_utc": "2026-09-26T07:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": "面談室",
+                  "local_start": "9/26 15:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-27T03:00:00.000Z",
+                  "end_utc": "2026-09-27T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 B",
+                  "local_start": "9/27 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "8867c979-932d-4df6-afbe-e1fbf5e4f53f",
+                  "title": "季度預算檢討",
+                  "start_utc": "2026-09-27T06:00:00.000Z",
+                  "end_utc": "2026-09-27T07:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": "財務會議室",
+                  "local_start": "9/27 14:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 19,
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "兩場專案同步會分別在 - 9月27日：小會議室 B、9月28日：小會議室 C。"
+    },
+    "EX04": {
+      "calls": [
+        {
+          "ms": 35,
+          "tool": "calendar_query",
+          "args": {
+            "question": "哪幾場會是在大會議室開的？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "unbounded_enumeration",
+                  "needs": "跨越預設時間窗的完整列舉（本地預設只看 7 天，會靜默截斷）"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（跨越預設時間窗的完整列舉（本地預設只看 7 天，會靜默截斷）），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-21T16:00:00.067Z",
+                "to_utc": "2026-09-28T16:00:00.067Z",
+                "label": "接下來 7 天",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "558ae73f-3a1a-43db-8d19-c778e1803ea0",
+                  "title": "今日午前同步",
+                  "start_utc": "2026-09-22T03:00:00.000Z",
+                  "end_utc": "2026-09-22T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/22 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b233af10-a1d0-433a-b18e-4d39e8d3bf08",
+                  "title": "今日收尾檢查",
+                  "start_utc": "2026-09-22T08:00:00.000Z",
+                  "end_utc": "2026-09-22T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/22 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null,
+                  "local_start": "9/24 10:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-24"
+                },
+                {
+                  "event_id": "96f61f55-330e-4845-8cf5-b930913756be",
+                  "title": "工程週會",
+                  "start_utc": "2026-09-25T01:00:00.000Z",
+                  "end_utc": "2026-09-25T02:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 A",
+                  "local_start": "9/25 09:00",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "9c31259b-edc4-4daf-88ab-5fbf724a8497",
+                  "title": "設計評審",
+                  "start_utc": "2026-09-25T05:30:00.000Z",
+                  "end_utc": "2026-09-25T06:15:00.000Z",
+                  "duration_minutes": 45,
+                  "location": "設計棚",
+                  "local_start": "9/25 13:30",
+                  "local_end": "14:15",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "5997dffe-46b0-4582-bf60-f61f1b2d7f58",
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "end_utc": "2026-09-25T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "a36536af-3c63-43ea-b697-ccdcd86619b7",
+                  "title": "一對一：王大文",
+                  "start_utc": "2026-09-25T09:00:00.000Z",
+                  "end_utc": "2026-09-25T09:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 17:00",
+                  "local_end": "17:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室",
+                  "local_start": "9/26 10:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "973e3485-9752-4fe5-aebf-dc4f1b73ce18",
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "end_utc": "2026-09-26T03:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/26 11:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "3d6e9daf-1227-4348-a609-759c38f41a1f",
+                  "title": "招募面談",
+                  "start_utc": "2026-09-26T07:00:00.000Z",
+                  "end_utc": "2026-09-26T07:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": "面談室",
+                  "local_start": "9/26 15:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-27T03:00:00.000Z",
+                  "end_utc": "2026-09-27T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 B",
+                  "local_start": "9/27 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "8867c979-932d-4df6-afbe-e1fbf5e4f53f",
+                  "title": "季度預算檢討",
+                  "start_utc": "2026-09-27T06:00:00.000Z",
+                  "end_utc": "2026-09-27T07:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": "財務會議室",
+                  "local_start": "9/27 14:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 19,
+              "subject_keyword": "會是在大會議室開的",
+              "subject_matches": [],
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "接下來 7 天內在大會議室開的會有 2 場——9月23日的產品週會、9月26日的客戶簡報排練。"
+    },
+    "EX05": {
+      "calls": [
+        {
+          "ms": 21,
+          "tool": "calendar_query",
+          "args": {
+            "question": "我明天最忙的是上午還是下午？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "comparison_of_derived",
+                  "needs": "先分組統計再比較"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（先分組統計再比較），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-22T16:00:00.053Z",
+                "to_utc": "2026-09-23T16:00:00.053Z",
+                "label": "明天（9/23）",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 4,
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "明天（2026-09-23）最忙的是下午，總共 1.5 小時的會議（產品週會 1 小時 + 小明發起的需求討論 30 分鐘）。"
+    },
+    "EX06": {
+      "calls": [
+        {
+          "ms": 28,
+          "tool": "calendar_query",
+          "args": {
+            "question": "牙醫預約那天我還有其他行程嗎？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "dependent_lookup",
+                  "needs": "先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-21T16:00:00.939Z",
+                "to_utc": "2026-09-28T16:00:00.939Z",
+                "label": "接下來 7 天",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "558ae73f-3a1a-43db-8d19-c778e1803ea0",
+                  "title": "今日午前同步",
+                  "start_utc": "2026-09-22T03:00:00.000Z",
+                  "end_utc": "2026-09-22T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/22 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b233af10-a1d0-433a-b18e-4d39e8d3bf08",
+                  "title": "今日收尾檢查",
+                  "start_utc": "2026-09-22T08:00:00.000Z",
+                  "end_utc": "2026-09-22T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/22 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null,
+                  "local_start": "9/24 10:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-24"
+                },
+                {
+                  "event_id": "96f61f55-330e-4845-8cf5-b930913756be",
+                  "title": "工程週會",
+                  "start_utc": "2026-09-25T01:00:00.000Z",
+                  "end_utc": "2026-09-25T02:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 A",
+                  "local_start": "9/25 09:00",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "9c31259b-edc4-4daf-88ab-5fbf724a8497",
+                  "title": "設計評審",
+                  "start_utc": "2026-09-25T05:30:00.000Z",
+                  "end_utc": "2026-09-25T06:15:00.000Z",
+                  "duration_minutes": 45,
+                  "location": "設計棚",
+                  "local_start": "9/25 13:30",
+                  "local_end": "14:15",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "5997dffe-46b0-4582-bf60-f61f1b2d7f58",
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "end_utc": "2026-09-25T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "a36536af-3c63-43ea-b697-ccdcd86619b7",
+                  "title": "一對一：王大文",
+                  "start_utc": "2026-09-25T09:00:00.000Z",
+                  "end_utc": "2026-09-25T09:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 17:00",
+                  "local_end": "17:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室",
+                  "local_start": "9/26 10:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "973e3485-9752-4fe5-aebf-dc4f1b73ce18",
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "end_utc": "2026-09-26T03:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/26 11:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "3d6e9daf-1227-4348-a609-759c38f41a1f",
+                  "title": "招募面談",
+                  "start_utc": "2026-09-26T07:00:00.000Z",
+                  "end_utc": "2026-09-26T07:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": "面談室",
+                  "local_start": "9/26 15:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-27T03:00:00.000Z",
+                  "end_utc": "2026-09-27T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 B",
+                  "local_start": "9/27 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "8867c979-932d-4df6-afbe-e1fbf5e4f53f",
+                  "title": "季度預算檢討",
+                  "start_utc": "2026-09-27T06:00:00.000Z",
+                  "end_utc": "2026-09-27T07:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": "財務會議室",
+                  "local_start": "9/27 14:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 19,
+              "subject_keyword": "牙醫預約",
+              "subject_matches": [
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null
+                }
+              ],
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "牙醫預約那天（2026年9月24日）只有牙醫預約（10:00-11:30）這一個行程，沒有其他行程。"
+    },
+    "EX07": {
+      "calls": [
+        {
+          "ms": 23,
+          "tool": "calendar_query",
+          "args": {
+            "question": "我有哪些行程時間互相重疊？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "conflict_detection",
+                  "needs": "同一天內的行程兩兩比對起訖時間"
+                },
+                {
+                  "id": "unbounded_enumeration",
+                  "needs": "跨越預設時間窗的完整列舉（本地預設只看 7 天，會靜默截斷）"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（同一天內的行程兩兩比對起訖時間、跨越預設時間窗的完整列舉（本地預設只看 7 天，會靜默截斷）），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-21T16:00:00.677Z",
+                "to_utc": "2026-09-28T16:00:00.677Z",
+                "label": "接下來 7 天",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "558ae73f-3a1a-43db-8d19-c778e1803ea0",
+                  "title": "今日午前同步",
+                  "start_utc": "2026-09-22T03:00:00.000Z",
+                  "end_utc": "2026-09-22T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/22 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b233af10-a1d0-433a-b18e-4d39e8d3bf08",
+                  "title": "今日收尾檢查",
+                  "start_utc": "2026-09-22T08:00:00.000Z",
+                  "end_utc": "2026-09-22T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/22 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null,
+                  "local_start": "9/24 10:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-24"
+                },
+                {
+                  "event_id": "96f61f55-330e-4845-8cf5-b930913756be",
+                  "title": "工程週會",
+                  "start_utc": "2026-09-25T01:00:00.000Z",
+                  "end_utc": "2026-09-25T02:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 A",
+                  "local_start": "9/25 09:00",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "9c31259b-edc4-4daf-88ab-5fbf724a8497",
+                  "title": "設計評審",
+                  "start_utc": "2026-09-25T05:30:00.000Z",
+                  "end_utc": "2026-09-25T06:15:00.000Z",
+                  "duration_minutes": 45,
+                  "location": "設計棚",
+                  "local_start": "9/25 13:30",
+                  "local_end": "14:15",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "5997dffe-46b0-4582-bf60-f61f1b2d7f58",
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "end_utc": "2026-09-25T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "a36536af-3c63-43ea-b697-ccdcd86619b7",
+                  "title": "一對一：王大文",
+                  "start_utc": "2026-09-25T09:00:00.000Z",
+                  "end_utc": "2026-09-25T09:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 17:00",
+                  "local_end": "17:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室",
+                  "local_start": "9/26 10:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "973e3485-9752-4fe5-aebf-dc4f1b73ce18",
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "end_utc": "2026-09-26T03:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/26 11:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "3d6e9daf-1227-4348-a609-759c38f41a1f",
+                  "title": "招募面談",
+                  "start_utc": "2026-09-26T07:00:00.000Z",
+                  "end_utc": "2026-09-26T07:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": "面談室",
+                  "local_start": "9/26 15:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-27T03:00:00.000Z",
+                  "end_utc": "2026-09-27T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 B",
+                  "local_start": "9/27 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "8867c979-932d-4df6-afbe-e1fbf5e4f53f",
+                  "title": "季度預算檢討",
+                  "start_utc": "2026-09-27T06:00:00.000Z",
+                  "end_utc": "2026-09-27T07:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": "財務會議室",
+                  "local_start": "9/27 14:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 19,
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "接下來 7 天內有 2 組行程時間重疊——9月26日的「客戶簡報排練」與「美玲的設計交接」、9月28日的「下週規劃會」與「專案同步會」。"
+    },
+    "EX08": {
+      "calls": [
+        {
+          "ms": 4558,
+          "tool": "calendar_query",
+          "args": {
+            "question": "別人發起、還在等我回覆的會議有哪幾場？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "list_pending",
+            "message": "你有 3 個待回覆的邀請：\n• 9/23 15:30 小明發起的需求討論\n• 9/25 16:00 大文發起的架構討論\n• 9/26 11:00 美玲的設計交接\n可到右上角鈴鐺一鍵回覆。",
+            "handled_by": "local",
+            "local_route": "agent"
+          },
+          "isError": false
+        }
+      ],
+      "answer": "你有 3 個待回覆的邀請：• 9/23 15:30 小明發起的需求討論• 9/25 16:00 大文發起的架構討論• 9/26 11:00 美玲的設計交接可到右上角鈴鐺一鍵回覆。"
+    },
+    "EX09": {
+      "calls": [
+        {
+          "ms": 2287,
+          "tool": "calendar_query",
+          "args": {
+            "question": "我跟工程團隊成員有哪些共同會議？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "list_events",
+            "message": "接下來 7 天工程團隊有 3 個會議/行程：\n• 9/25 09:00 工程週會\n• 9/25 17:00 一對一：王大文\n• 9/26 10:00 客戶簡報排練",
+            "handled_by": "local",
+            "local_route": "agent+backstop"
+          },
+          "isError": false
+        }
+      ],
+      "answer": "接下來 7 天工程團隊有 3 個會議/行程：• 9/25 09:00 工程週會• 9/25 17:00 一對一：王大文• 9/26 10:00 客戶簡報排練"
+    },
+    "EX10": {
+      "calls": [
+        {
+          "ms": 27,
+          "tool": "calendar_query",
+          "args": {
+            "question": "客戶簡報排練那天，排練前我有多少時間可以準備？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "dependent_lookup",
+                  "needs": "先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）"
+                },
+                {
+                  "id": "derived_interval",
+                  "needs": "計算指定事件與相鄰事件之間的間隔"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）、計算指定事件與相鄰事件之間的間隔），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-21T16:00:00.643Z",
+                "to_utc": "2026-09-28T16:00:00.643Z",
+                "label": "接下來 7 天",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "558ae73f-3a1a-43db-8d19-c778e1803ea0",
+                  "title": "今日午前同步",
+                  "start_utc": "2026-09-22T03:00:00.000Z",
+                  "end_utc": "2026-09-22T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/22 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b233af10-a1d0-433a-b18e-4d39e8d3bf08",
+                  "title": "今日收尾檢查",
+                  "start_utc": "2026-09-22T08:00:00.000Z",
+                  "end_utc": "2026-09-22T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/22 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-22"
+                },
+                {
+                  "event_id": "b68cbdfa-6a9c-4f74-9f31-cc421159fb61",
+                  "title": "站立會",
+                  "start_utc": "2026-09-23T01:30:00.000Z",
+                  "end_utc": "2026-09-23T02:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 09:30",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "f3577cc3-cc19-4677-a0e8-a8fdb98a9d46",
+                  "title": "產品週會",
+                  "start_utc": "2026-09-23T06:00:00.000Z",
+                  "end_utc": "2026-09-23T07:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "大會議室",
+                  "local_start": "9/23 14:00",
+                  "local_end": "15:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "53b76d40-80dc-4dae-a50d-3b13a3b80531",
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "end_utc": "2026-09-23T08:00:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/23 15:30",
+                  "local_end": "16:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "72323649-beba-4b25-8b5b-eb409aaf9525",
+                  "title": "晚間客戶通話",
+                  "start_utc": "2026-09-23T11:00:00.000Z",
+                  "end_utc": "2026-09-23T12:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/23 19:00",
+                  "local_end": "20:00",
+                  "local_date": "2026-09-23"
+                },
+                {
+                  "event_id": "8e7dafd9-27a0-415d-a08f-db2efaad007b",
+                  "title": "牙醫預約",
+                  "start_utc": "2026-09-24T02:00:00.000Z",
+                  "end_utc": "2026-09-24T03:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": null,
+                  "local_start": "9/24 10:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-24"
+                },
+                {
+                  "event_id": "96f61f55-330e-4845-8cf5-b930913756be",
+                  "title": "工程週會",
+                  "start_utc": "2026-09-25T01:00:00.000Z",
+                  "end_utc": "2026-09-25T02:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 A",
+                  "local_start": "9/25 09:00",
+                  "local_end": "10:00",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "9c31259b-edc4-4daf-88ab-5fbf724a8497",
+                  "title": "設計評審",
+                  "start_utc": "2026-09-25T05:30:00.000Z",
+                  "end_utc": "2026-09-25T06:15:00.000Z",
+                  "duration_minutes": 45,
+                  "location": "設計棚",
+                  "local_start": "9/25 13:30",
+                  "local_end": "14:15",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "5997dffe-46b0-4582-bf60-f61f1b2d7f58",
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "end_utc": "2026-09-25T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "a36536af-3c63-43ea-b697-ccdcd86619b7",
+                  "title": "一對一：王大文",
+                  "start_utc": "2026-09-25T09:00:00.000Z",
+                  "end_utc": "2026-09-25T09:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/25 17:00",
+                  "local_end": "17:30",
+                  "local_date": "2026-09-25"
+                },
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室",
+                  "local_start": "9/26 10:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "973e3485-9752-4fe5-aebf-dc4f1b73ce18",
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "end_utc": "2026-09-26T03:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/26 11:00",
+                  "local_end": "11:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "3d6e9daf-1227-4348-a609-759c38f41a1f",
+                  "title": "招募面談",
+                  "start_utc": "2026-09-26T07:00:00.000Z",
+                  "end_utc": "2026-09-26T07:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": "面談室",
+                  "local_start": "9/26 15:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-26"
+                },
+                {
+                  "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-27T03:00:00.000Z",
+                  "end_utc": "2026-09-27T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 B",
+                  "local_start": "9/27 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "8867c979-932d-4df6-afbe-e1fbf5e4f53f",
+                  "title": "季度預算檢討",
+                  "start_utc": "2026-09-27T06:00:00.000Z",
+                  "end_utc": "2026-09-27T07:30:00.000Z",
+                  "duration_minutes": 90,
+                  "location": "財務會議室",
+                  "local_start": "9/27 14:00",
+                  "local_end": "15:30",
+                  "local_date": "2026-09-27"
+                },
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 19,
+              "subject_keyword": "客戶簡報排練",
+              "subject_matches": [
+                {
+                  "event_id": "05b5ace6-a410-4b2c-a9ca-703b6bbb1450",
+                  "title": "客戶簡報排練",
+                  "start_utc": "2026-09-26T02:00:00.000Z",
+                  "end_utc": "2026-09-26T04:00:00.000Z",
+                  "duration_minutes": 120,
+                  "location": "大會議室"
+                }
+              ],
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "客戶簡報排練那天（9月26日），排練從 10:00 開始，之前沒有其他行程，從工作時間 09:00 起你有 1 小時可以準備。"
+    },
+    "EX11": {
+      "calls": [
+        {
+          "ms": 4869,
+          "tool": "calendar_query",
+          "args": {
+            "question": "季度預算檢討跟專案同步會是同一天嗎？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "event_detail",
+            "message": "專案同步會\n9/27 11:00–12:00（約 60 分鐘）\n地點：小會議室 B",
+            "handled_by": "local",
+            "local_route": "agent"
+          },
+          "isError": false
+        }
+      ],
+      "answer": "是的，都是 9 月 27 日——專案同步會在上午 11:00-12:00（小會議室 B），季度預算檢討在下午 14:00-15:30（財務會議室）。"
+    },
+    "EX12": {
+      "calls": [
+        {
+          "ms": 23,
+          "tool": "calendar_query",
+          "args": {
+            "question": "下週一之後的三場會分別跟誰有關？",
+            "detail": "auto"
+          },
+          "payload": {
+            "kind": "escalate",
+            "escalation": {
+              "reason": "local_capability_gap",
+              "operators": [
+                {
+                  "id": "cross_entity_enumeration",
+                  "needs": "對多個實體逐一取細節再併列"
+                },
+                {
+                  "id": "dependent_lookup",
+                  "needs": "先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）"
+                }
+              ],
+              "explanation": "此問題需要對查詢結果再做運算（對多個實體逐一取細節再併列、先解析出指定事件的日期，再以該日期查詢（兩段相依查詢）），本地查詢工具面沒有這類運算；已附上所需事實，請由呼叫端完成推理。",
+              "local_model": "qwen3:14b"
+            },
+            "facts": {
+              "window": {
+                "from_utc": "2026-09-27T16:00:00.086Z",
+                "to_utc": "2026-09-28T16:00:00.086Z",
+                "label": "下週週一",
+                "timezone": "Asia/Taipei"
+              },
+              "events": [
+                {
+                  "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                  "title": "下週規劃會",
+                  "start_utc": "2026-09-28T02:00:00.000Z",
+                  "end_utc": "2026-09-28T03:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": null,
+                  "local_start": "9/28 10:00",
+                  "local_end": "11:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "8fde3a05-2d06-4fb7-891c-f48fcf542aaa",
+                  "title": "專案同步會",
+                  "start_utc": "2026-09-28T03:00:00.000Z",
+                  "end_utc": "2026-09-28T04:00:00.000Z",
+                  "duration_minutes": 60,
+                  "location": "小會議室 C",
+                  "local_start": "9/28 11:00",
+                  "local_end": "12:00",
+                  "local_date": "2026-09-28"
+                },
+                {
+                  "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                  "title": "週回顧",
+                  "start_utc": "2026-09-28T08:00:00.000Z",
+                  "end_utc": "2026-09-28T08:30:00.000Z",
+                  "duration_minutes": 30,
+                  "location": null,
+                  "local_start": "9/28 16:00",
+                  "local_end": "16:30",
+                  "local_date": "2026-09-28"
+                }
+              ],
+              "truncated": false,
+              "total_in_window": 3,
+              "pending_invitations": [
+                {
+                  "title": "小明發起的需求討論",
+                  "start_utc": "2026-09-23T07:30:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "大文發起的架構討論",
+                  "start_utc": "2026-09-25T08:00:00.000Z",
+                  "organizer": null
+                },
+                {
+                  "title": "美玲的設計交接",
+                  "start_utc": "2026-09-26T03:00:00.000Z",
+                  "organizer": null
+                }
+              ],
+              "working_hours": {
+                "start": 9,
+                "end": 18,
+                "note": "空檔類推理的慣例工作時間"
+              }
+            },
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": "下週一（9月28日）當天及之後共有 3 場會——10:00-11:00「下週規劃會」、11:00-12:00「專案同步會」、16:00-16:30「週回顧」。這三場都沒有其他與會者。"
+    },
+    "EX12_detail1": {
+      "calls": [
+        {
+          "ms": 28,
+          "tool": "calendar_query",
+          "args": {
+            "plan": {
+              "intent": "event_detail",
+              "filter_keyword": "下週規劃會",
+              "search_range": "all"
+            },
+            "detail": "structured"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "event_detail",
+            "local_draft_answer": "下週規劃會\n9/28 10:00–11:00（約 60 分鐘）",
+            "facts": {
+              "events": [],
+              "free_slots": [],
+              "groups": null,
+              "count": null,
+              "detail": {
+                "event_id": "b7f88adf-a185-463d-9c27-82584ad33886",
+                "title": "下週規劃會",
+                "start_utc": "2026-09-28T02:00:00.000Z",
+                "end_utc": "2026-09-28T03:00:00.000Z",
+                "duration_minutes": 60,
+                "timezone": "Asia/Taipei",
+                "location": null,
+                "description": null,
+                "source": "app",
+                "attendees": []
+              },
+              "window": null,
+              "parts": null
+            },
+            "pagination": {
+              "events": null,
+              "free_slots": null
+            },
+            "query_spec": null,
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": null
+    },
+    "EX12_detail2": {
+      "calls": [
+        {
+          "ms": 14,
+          "tool": "calendar_query",
+          "args": {
+            "plan": {
+              "intent": "event_detail",
+              "filter_keyword": "專案同步會",
+              "search_range": "all"
+            },
+            "detail": "structured"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "event_detail",
+            "local_draft_answer": "專案同步會\n9/27 11:00–12:00（約 60 分鐘）\n地點：小會議室 B",
+            "facts": {
+              "events": [],
+              "free_slots": [],
+              "groups": null,
+              "count": null,
+              "detail": {
+                "event_id": "9a3e843a-7dd5-4757-bfa4-02a220f4d030",
+                "title": "專案同步會",
+                "start_utc": "2026-09-27T03:00:00.000Z",
+                "end_utc": "2026-09-27T04:00:00.000Z",
+                "duration_minutes": 60,
+                "timezone": "Asia/Taipei",
+                "location": "小會議室 B",
+                "description": null,
+                "source": "app",
+                "attendees": []
+              },
+              "window": null,
+              "parts": null
+            },
+            "pagination": {
+              "events": null,
+              "free_slots": null
+            },
+            "query_spec": null,
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": null
+    },
+    "EX12_detail3": {
+      "calls": [
+        {
+          "ms": 27,
+          "tool": "calendar_query",
+          "args": {
+            "plan": {
+              "intent": "event_detail",
+              "filter_keyword": "週回顧",
+              "search_range": "all"
+            },
+            "detail": "structured"
+          },
+          "payload": {
+            "kind": "answer",
+            "intent": "event_detail",
+            "local_draft_answer": "週回顧\n9/28 16:00–16:30（約 30 分鐘）",
+            "facts": {
+              "events": [],
+              "free_slots": [],
+              "groups": null,
+              "count": null,
+              "detail": {
+                "event_id": "c1c02035-1525-4187-9919-41429fd97cb0",
+                "title": "週回顧",
+                "start_utc": "2026-09-28T08:00:00.000Z",
+                "end_utc": "2026-09-28T08:30:00.000Z",
+                "duration_minutes": 30,
+                "timezone": "Asia/Taipei",
+                "location": null,
+                "description": null,
+                "source": "app",
+                "attendees": []
+              },
+              "window": null,
+              "parts": null
+            },
+            "pagination": {
+              "events": null,
+              "free_slots": null
+            },
+            "query_spec": null,
+            "scope": {
+              "visibility": "requester_own_and_participating_events_only",
+              "excludes": "other_members_private_events"
+            }
+          },
+          "isError": false
+        }
+      ],
+      "answer": null
+    }
+  }
+}

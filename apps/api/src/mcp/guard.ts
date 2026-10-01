@@ -68,6 +68,12 @@ export async function guardTool(
   return auth;
 }
 
+/** audit_log.on_behalf_of 是 uuid 欄位；非 uuid（如 OAuth token 的 agent_id）一律寫 null。 */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function uuidOrNull(v?: string | null): string | null {
+  return v && UUID_RE.test(v) ? v : null;
+}
+
 /** 每次 MCP tool 呼叫寫稽核（MCP-13）：actor_type=agent, agent_id, on_behalf_of。 */
 async function auditAgent(
   auth: AuthContext,
@@ -81,13 +87,21 @@ async function auditAgent(
     await writeAudit(auth.workspace, {
       actor_type: "agent",
       agent_id: auth.sub,
-      on_behalf_of: auth.sub,
+      // on_behalf_of = 授權該 agent 的「人」（OAuth consent 記下的 user_sub）。
+      // 舊實作寫 auth.sub：對 OAuth 發出的 M2M token 而言那是 agent_id（文字字串），
+      // 塞進 uuid 欄位會拋 22P02 並被 catch 吞掉 → MCP tool 呼叫**完全沒有稽核紀錄**。
+      // dev 自簽 token（sub 本身就是 membership uuid、無 user_sub）行為不變。
+      on_behalf_of: uuidOrNull(auth.user_sub ?? auth.sub),
       action,
       target_type: resource.type,
       decision,
       metadata: { tool, scope: auth.scope ?? [], ...(reason ? { reason } : {}) },
     });
-  } catch {
-    // 稽核寫入失敗不應阻斷授權判斷本身；上層仍依 decision 行事
+  } catch (e) {
+    // 稽核寫入失敗不應阻斷授權判斷本身；但也不該靜默消失（否則零信任稽核形同不存在）。
+    process.stderr.write(
+      `[mcp-audit] WARNING: failed to write audit (tool=${tool}, agent=${auth.sub}): ` +
+        `${e instanceof Error ? e.message : String(e)}\n`,
+    );
   }
 }

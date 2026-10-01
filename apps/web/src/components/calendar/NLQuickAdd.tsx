@@ -54,7 +54,7 @@ export function NLQuickAdd({
           onChange={(e) => setText(e.target.value)}
           placeholder="快速輸入：明天下午2點 團隊會議"
           aria-label="自然語言快速建立事件"
-          className="h-8 w-56 pl-7 text-xs"
+          className="w-48 pl-7 text-sm xl:w-64"
           disabled={busy}
         />
       </div>

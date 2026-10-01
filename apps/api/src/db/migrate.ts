@@ -161,6 +161,9 @@ CREATE INDEX IF NOT EXISTS audit_ws_at ON audit_log (workspace_id, at DESC);
 ALTER TABLE event_participants
   ADD COLUMN IF NOT EXISTS rsvp_status text NOT NULL DEFAULT 'pending'
     CHECK (rsvp_status IN ('pending','accepted','declined'));
+-- 3.1 正式化：真實密碼驗證。既有列可能為 NULL（未設密碼）→ 登入一律 fail-closed。
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS password_hash text;
 CREATE INDEX IF NOT EXISTS gm_ws_group ON group_members (workspace_id, group_id);
 CREATE INDEX IF NOT EXISTS gm_ws_user ON group_members (workspace_id, user_id);
 CREATE INDEX IF NOT EXISTS groups_ws_name ON groups (workspace_id, name);

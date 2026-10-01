@@ -4,6 +4,7 @@ const { RRule, RRuleSet, rrulestr } = pkg;
 export interface MasterEvent {
   id: string;
   title: string;
+  location?: string | null;
   start_utc: string; // ISO UTC
   end_utc: string;
   timezone: string;
@@ -26,6 +27,8 @@ export interface Occurrence {
   occurrence_start_utc: string;
   occurrence_end_utc: string;
   title: string;
+  /** 地點（可能為 null）；讓「大會議室有哪幾場會」這類查詢不必另開一條查詢路徑。 */
+  location: string | null;
   timezone: string;
   kind: "master_instance" | "exception";
   is_exception: boolean;
@@ -60,6 +63,7 @@ export function expandOccurrences(
           occurrence_start_utc: master.start_utc,
           occurrence_end_utc: master.end_utc,
           title: master.title,
+          location: master.location ?? null,
           timezone: master.timezone,
           kind: "master_instance",
           is_exception: false,
@@ -96,6 +100,7 @@ export function expandOccurrences(
         occurrence_start_utc: new Date(ex.start_utc).toISOString(),
         occurrence_end_utc: new Date(ex.end_utc).toISOString(),
         title: ex.title,
+        location: master.location ?? null,
         timezone: master.timezone,
         kind: "exception",
         is_exception: true,
@@ -108,6 +113,7 @@ export function expandOccurrences(
         occurrence_start_utc: st.toISOString(),
         occurrence_end_utc: new Date(st.getTime() + durationMs).toISOString(),
         title: master.title,
+        location: master.location ?? null,
         timezone: master.timezone,
         kind: "master_instance",
         is_exception: false,

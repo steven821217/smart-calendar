@@ -1,0 +1,31 @@
+# 縮小 build context：相依在映像內以 pnpm install 重裝，不複製 host 的 node_modules。
+**/node_modules
+**/dist
+**/build
+**/*.tsbuildinfo
+
+# 版控與編輯器
+.git
+.gitignore
+.github
+.playwright
+.vscode
+.idea
+
+# 密鑰／憑證：絕不進 image（防止洩漏）
+.env
+.env.*
+!.env.example
+*.crt
+*.key
+*.pem
+
+# 文件與評測產物（執行期用不到）
+docs
+eval
+.kiro
+
+# 日誌／暫存
+*.log
+coverage
+.DS_Store

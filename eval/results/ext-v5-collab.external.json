@@ -1,0 +1,170 @@
+{
+  "label": "ext-v5-collab",
+  "mode": "external-agent-collaboration",
+  "createdAt": "2026-09-22T09:44:08.488Z",
+  "localBaseline": "v24-date-range",
+  "summary": {
+    "total": 12,
+    "externalPassed": 11,
+    "localPassed": 3,
+    "externalToolMsTotal": 11953,
+    "localMsTotal": 59958,
+    "leaks": 0
+  },
+  "results": [
+    {
+      "id": "EX01",
+      "text": "明天哪一段空檔最長？",
+      "localOk": false,
+      "localMs": 3135,
+      "extOk": true,
+      "extMs": 27,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing \"10:00\""
+      ]
+    },
+    {
+      "id": "EX02",
+      "text": "明天總共要開幾個小時的會？",
+      "localOk": false,
+      "localMs": 3761,
+      "extOk": true,
+      "extMs": 28,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing any of 3 小時|180 分鐘|3小時"
+      ]
+    },
+    {
+      "id": "EX03",
+      "text": "兩場專案同步會分別在哪個會議室？",
+      "localOk": false,
+      "localMs": 6949,
+      "extOk": true,
+      "extMs": 27,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing \"小會議室 C\""
+      ]
+    },
+    {
+      "id": "EX04",
+      "text": "哪幾場會是在大會議室開的？",
+      "localOk": false,
+      "localMs": 4156,
+      "extOk": false,
+      "extMs": 35,
+      "calls": 1,
+      "extFailures": [
+        "missing \"產品路線圖對焦\""
+      ],
+      "localFailures": [
+        "missing \"客戶簡報排練\"",
+        "missing \"產品路線圖對焦\""
+      ]
+    },
+    {
+      "id": "EX05",
+      "text": "我明天最忙的是上午還是下午？",
+      "localOk": false,
+      "localMs": 3728,
+      "extOk": true,
+      "extMs": 21,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing \"下午\""
+      ]
+    },
+    {
+      "id": "EX06",
+      "text": "牙醫預約那天我還有其他行程嗎？",
+      "localOk": false,
+      "localMs": 6524,
+      "extOk": true,
+      "extMs": 28,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing any of 沒有|只有|沒別的|僅"
+      ]
+    },
+    {
+      "id": "EX07",
+      "text": "我有哪些行程時間互相重疊？",
+      "localOk": false,
+      "localMs": 3693,
+      "extOk": true,
+      "extMs": 23,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing \"簡報排練\"",
+        "missing \"設計交接\""
+      ]
+    },
+    {
+      "id": "EX08",
+      "text": "別人發起、還在等我回覆的會議有哪幾場？",
+      "localOk": true,
+      "localMs": 4057,
+      "extOk": true,
+      "extMs": 4558,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": []
+    },
+    {
+      "id": "EX09",
+      "text": "我跟工程團隊成員有哪些共同會議？",
+      "localOk": true,
+      "localMs": 2223,
+      "extOk": true,
+      "extMs": 2287,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": []
+    },
+    {
+      "id": "EX10",
+      "text": "客戶簡報排練那天，排練前我有多少時間可以準備？",
+      "localOk": true,
+      "localMs": 10211,
+      "extOk": true,
+      "extMs": 27,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": []
+    },
+    {
+      "id": "EX11",
+      "text": "季度預算檢討跟專案同步會是同一天嗎？",
+      "localOk": false,
+      "localMs": 4765,
+      "extOk": true,
+      "extMs": 4869,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing any of 同一天|同天|是|同一日"
+      ]
+    },
+    {
+      "id": "EX12",
+      "text": "下週一之後的三場會分別跟誰有關？",
+      "localOk": false,
+      "localMs": 6756,
+      "extOk": true,
+      "extMs": 23,
+      "calls": 1,
+      "extFailures": [],
+      "localFailures": [
+        "missing any of 李國強|王大文|張美玲|沒有其他與會者|沒有與會者|無其他與會者|都沒有其他"
+      ]
+    }
+  ]
+}

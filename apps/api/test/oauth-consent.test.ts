@@ -52,7 +52,8 @@ afterAll(async () => {
 
 /** 使用者登入取 user JWT。 */
 async function login(email = "a@example.com"): Promise<string> {
-  const res = await api.inject({ method: "POST", url: "/v1/auth/login", payload: { email } });
+  const password = process.env.SEED_DEMO_PASSWORD ?? "demo-password-1234";
+  const res = await api.inject({ method: "POST", url: "/v1/auth/login", payload: { email, password } });
   expect(res.statusCode).toBe(200);
   return res.json().access_token as string;
 }
@@ -100,7 +101,20 @@ describe("OAuth 2.1 consent flow", () => {
     await client.connect(transport);
     try {
       const { tools } = await client.listTools();
-      expect(tools.length).toBe(7);
+      expect(tools.length).toBe(10);
+      // OAuth 發出的 M2M token：sub=agent_id、user_sub=授權者。agent 應能查到
+      // 自己「代表誰」在操作（過去無此能力，只能自行解碼 JWT 拿到一串 UUID）。
+      const who = await client.callTool({ name: "whoami", arguments: {} });
+      const whoPayload = JSON.parse((who as { content: Array<{ text: string }> }).content[0].text);
+      expect(whoPayload.actor_type).toBe("agent");
+      expect(whoPayload.agent_id).toBe(agentId);
+      // on_behalf_of 必須是「實際做 consent 的那個人」（userToken 的 sub），
+      // 而不是 workspace 裡任何一個 membership。
+      const consentingMember = JSON.parse(
+        Buffer.from(userToken.split(".")[1], "base64").toString("utf8"),
+      ).sub as string;
+      expect(whoPayload.on_behalf_of.membership_id).toBe(consentingMember);
+      expect(whoPayload.capabilities.destructive_actions).toBe(false);
       const res = await client.callTool({
         name: "find_available_time_slots",
         arguments: { from_utc: "2027-12-01T00:00:00Z", to_utc: "2027-12-01T04:00:00Z", duration_minutes: 30, busy: [] },

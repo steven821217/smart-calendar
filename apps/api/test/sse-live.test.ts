@@ -130,3 +130,32 @@ describe("ISO-3：SSE 只轉發同 workspace 事件", () => {
     expect(seenByWsA).toHaveLength(0);
   });
 });
+
+describe("個人隔離：SSE 只送訊號，不夾帶事件內容", () => {
+  /**
+   * liveBus 是 workspace 廣播——同 workspace 的每個連線都會收到同一顆事件。
+   * 因此線上格式（data:）**不得**夾帶 title/description/location，否則 member
+   * 會從即時通道看到 leader 的私人會議標題，直接繞過 GET /v1/events 的個人隔離。
+   * 此處複刻 sse-routes 的序列化，鎖住「只送 type + at」。
+   */
+  const wire = (ev: LiveEvent) => JSON.stringify({ type: ev.type, at: ev.at });
+
+  it("含敏感欄位的事件 → 線上格式不含任何內容", () => {
+    const ev: LiveEvent = {
+      workspaceId: WS_A,
+      type: "event.created",
+      payload: {
+        id: "e-secret",
+        event: { title: "機密一對一", description: "薪資討論", location: "小會議室" },
+      },
+      at: "t",
+    };
+    const data = wire(ev);
+    expect(data).not.toContain("機密一對一");
+    expect(data).not.toContain("薪資討論");
+    expect(data).not.toContain("小會議室");
+    expect(data).not.toContain("e-secret");
+    // 仍保留前端觸發重新抓取所需的最小資訊
+    expect(JSON.parse(data)).toEqual({ type: "event.created", at: "t" });
+  });
+});

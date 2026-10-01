@@ -30,7 +30,13 @@ import {
 } from "./tools.js";
 import type { ChatModel, ChatMessage } from "../agents/llm.js";
 import { makeChatModel } from "../agents/llm.js";
-import { runInAppAgent } from "../agents/inapp/service.js";
+import { runInAppAgent, type DecisionNote } from "../agents/inapp/service.js";
+import { shapeForExternalAgent, type DetailLevel } from "./external-view.js";
+import { ExternalPlanSchema, routeFromExternalPlan, type ExternalPlan } from "./external-plan.js";
+import type { RouteResult } from "../agents/inapp/router.js";
+import { buildServerCard } from "./server-card.js";
+import { assessLocalCompetence, escalationOperatorCatalogue } from "./collaboration.js";
+import { gatherFactsForEscalation } from "./escalation-facts.js";
 
 /**
  * 解析本機 dev 授權：優先用 MCP_DEV_TOKEN（完整 Bearer JWT）；
@@ -95,6 +101,54 @@ function errorResult(e: unknown) {
 
 function okResult(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload) }] };
+}
+
+/**
+ * 解析「代表誰操作」的可讀身分（whoami 用）。走 withWorkspace → RLS 兜底，
+ * 只可能讀到本 workspace 的成員；查不到回 null（不拋，讓 whoami 仍能回 token 事實）。
+ */
+async function resolveIdentity(
+  workspace: string,
+  membershipId: string,
+): Promise<
+  | {
+      membership_id: string;
+      display_name: string | null;
+      email: string | null;
+      role: string;
+      timezone: string;
+      workspace: { slug: string; name: string };
+    }
+  | null
+> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(membershipId)) return null;
+  try {
+    const { withWorkspace } = await import("../db/pool.js");
+    return await withWorkspace(workspace, async (c) => {
+      const r = await c.query(
+        `SELECT m.id AS membership_id, m.role, m.timezone,
+                u.display_name, u.email, w.slug, w.name
+           FROM memberships m
+           JOIN workspaces w ON w.id = m.workspace_id
+           JOIN users u ON u.id = m.user_id
+          WHERE m.id = $1 AND m.workspace_id = $2
+          LIMIT 1`,
+        [membershipId, workspace],
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        membership_id: row.membership_id,
+        display_name: row.display_name,
+        email: row.email,
+        role: row.role,
+        timezone: row.timezone,
+        workspace: { slug: row.slug, name: row.name },
+      };
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function buildMcpServer(auth: AuthContext | null): McpServer {
@@ -220,28 +274,264 @@ export function buildMcpServer(auth: AuthContext | null): McpServer {
     },
   );
 
-  // Tool 7: query_calendar（唯讀查詢，availability.read）——外部 agent 問個人日曆問題。
-  // 複用站內 agent 查詢核心：嚴格個人隔離（本人 own+participant）、時間規則算、14B harness。
+  // Tool 7: 日曆查詢（唯讀，event.read）。
+  // 兩個名稱共用同一實作：
+  //   calendar_query  ── namespace 化的正名（Microsoft Research 2025 建議正式命名空間，
+  //                      其調查中 775 個工具撞名、`search` 一名重複 32 次）
+  //   query_calendar  ── 既有名稱，保留相容，description 標示 deprecated
+  const CALENDAR_QUERY_INPUT = {
+    question: z.string().min(1).max(1000).optional().describe("自然語言問題，如「明天下午有哪些會」"),
+    subtasks: z
+      .array(z.string().min(1).max(300))
+      .min(2)
+      .max(5)
+      .optional()
+      .describe("呼叫端已自行拆好的獨立子請求；給了就跳過本地 Planner（省一次模型呼叫與其誤判風險）"),
+    plan: ExternalPlanSchema.optional().describe(
+      "呼叫端已自行理解好的查詢（intent + 槽位）；給了就完全不呼叫本地 14B，回應在數百毫秒內完成",
+    ),
+    detail: z
+      .enum(["brief", "structured", "evidence", "auto"])
+      .optional()
+      .describe(
+        "回應細節層級。brief=一句自然語言（預設，給能力有限的呼叫端）；" +
+        "structured=結構化事實＋分頁；evidence=再加上決策依據與不確定性標記（建議強模型使用）",
+      ),
+    page: z.number().int().min(1).max(100).optional().describe("structured/evidence 的分頁頁碼"),
+    page_size: z.number().int().min(1).max(50).optional().describe("每頁筆數，上限 50"),
+    viewer_timezone: z.string().optional().describe("IANA 時區，預設 Asia/Taipei"),
+  };
+
+  const runCalendarQuery = async (args: {
+    question?: string;
+    subtasks?: string[];
+    plan?: ExternalPlan;
+    detail?: DetailLevel;
+    page?: number;
+    page_size?: number;
+    viewer_timezone?: string;
+  }) => {
+    await guardTool(auth, "calendar_query", "event.read", { type: "event" });
+    const detail: DetailLevel = args.detail ?? "brief";
+    const tz = args.viewer_timezone ?? "Asia/Taipei";
+    const model = stubOpts.model ?? makeChatModel();
+    // M2M token 的 sub=agent_id；查詢「本人日曆」的本人是授權該 agent 的 user（user_sub）。
+    const onBehalf = auth!.user_sub ?? auth!.sub;
+    const queryAuth = { ...auth!, sub: onBehalf };
+    const trace: DecisionNote[] = [];
+
+    const inputCount = [args.question, args.subtasks, args.plan].filter((v) => v !== undefined).length;
+    if (inputCount !== 1) {
+      return okResult({
+        kind: "invalid_request",
+        message: "question、subtasks、plan 三者請恰好提供一個。",
+        hint: "自然語言問題用 question；已自行拆解的多個請求用 subtasks；已自行理解好的查詢用 plan。",
+      });
+    }
+
+    // 共用的執行 + 整形；readOnly 務必在 runInAppAgent **之內**就擋掉寫入類意圖
+    // （舊實作先跑完才看 intent，respond_rsvp 已寫 DB 才回 not_permitted，回應與事實不符）。
+    const execute = async (text: string, routeOverride?: RouteResult) =>
+      runInAppAgent(queryAuth, text, tz, {
+        model,
+        readOnly: true,
+        ...(routeOverride ? { routeOverride } : {}),
+        ...(detail === "evidence" ? { trace } : {}),
+      });
+
+    // 協作模式（SWARM-LLM 式的 local-first cascade）：先做確定性能力自評。
+    // 能力缺口與信心無關——本地再有信心也算不出「總共幾小時」，
+    // 因此這類問題不必先跑一次模型才發現做不到，直接備好事實交給呼叫端推理。
+    if (detail === "auto" && args.question) {
+      const competence = assessLocalCompetence(args.question);
+      if (!competence.competent) {
+        const facts = await gatherFactsForEscalation(queryAuth, args.question, tz, new Date(), competence.operators.map((o) => o.id));
+        return okResult({
+          kind: "escalate",
+          escalation: {
+            reason: "local_capability_gap",
+            operators: competence.operators,
+            explanation: competence.reason,
+            local_model: process.env.LLM_MODEL ?? "qwen3:14b",
+          },
+          // 附上事實，讓呼叫端一次就能完成推理，不必再往返
+          facts,
+          scope: {
+            visibility: "requester_own_and_participating_events_only",
+            excludes: "other_members_private_events",
+          },
+        });
+      }
+      // 本地有能力 → 本地實際跑一次（GPU 參與），再依執行過程的推測決定是否仍要升級
+      const localReply = await execute(args.question);
+      const uncertain = trace.filter((t) => t.uncertain);
+      const flagsLocal = (localReply.data ?? {}) as { not_permitted?: boolean; not_a_query?: boolean };
+      if (flagsLocal.not_permitted || flagsLocal.not_a_query) {
+        return okResult({ kind: flagsLocal.not_a_query ? "not_a_query" : "not_permitted", message: localReply.message });
+      }
+      if (localReply.kind !== "answer" || uncertain.length > 0) {
+        const facts = await gatherFactsForEscalation(queryAuth, args.question, tz);
+        return okResult({
+          kind: "escalate",
+          escalation: {
+            reason: localReply.kind !== "answer" ? "local_needs_clarification" : "local_uncertain_steps",
+            uncertain_steps: uncertain.map((t) => ({ step: t.step, note: t.note })),
+            explanation:
+              "本地已嘗試回答，但過程中有推測步驟（候選重排／語法補抽）或無法確定目標；" +
+              "附上事實供呼叫端自行判斷。",
+            local_draft_answer: localReply.message,
+          },
+          facts,
+          scope: {
+            visibility: "requester_own_and_participating_events_only",
+            excludes: "other_members_private_events",
+          },
+        });
+      }
+      return okResult({
+        kind: "answer",
+        intent: localReply.intent ?? null,
+        message: localReply.message,
+        handled_by: "local",
+        // 讓呼叫端知道本地是走確定性路徑還是經過 14B
+        local_route: localReply.via ?? null,
+      });
+    }
+
+    let reply;
+    if (args.plan) {
+      // 外部 agent 已理解好 → 本地零模型呼叫，純資料執行
+      const question = `[external-plan] ${args.plan.intent}`;
+      reply = await execute(question, routeFromExternalPlan(args.plan, question));
+      trace.push({
+        step: "external_plan",
+        note: "本次查詢的意圖與槽位由呼叫端提供，本地未呼叫語言模型",
+        data: { plan: args.plan },
+      });
+    } else if (args.subtasks) {
+      // 呼叫端已拆解 → 各子請求並行執行，跳過本地 Planner
+      const parts = await Promise.all(args.subtasks.map((t) => execute(t)));
+      const blocked = parts.find((r) => {
+        const f = (r.data ?? {}) as { not_permitted?: boolean; not_a_query?: boolean };
+        return f.not_permitted || f.not_a_query;
+      });
+      if (blocked) return okResult({ kind: "not_permitted", message: blocked.message });
+      const shaped = parts.map((r, i) =>
+        shapeForExternalAgent({ ...r, trace }, { detail, page: args.page, pageSize: args.page_size }),
+      );
+      return okResult({
+        kind: parts.every((r) => r.kind === "answer") ? "answer" : "needs_clarification",
+        intent: "multiple",
+        subtask_results: args.subtasks.map((t, i) => ({ request: t, ...shaped[i] })),
+        ...(detail === "brief"
+          ? { message: parts.map((r, i) => `【${i + 1}】${r.message}`).join("\n\n") }
+          : {}),
+      });
+    } else {
+      reply = await execute(args.question!);
+    }
+
+    const flags = (reply.data ?? {}) as { not_a_query?: boolean; not_permitted?: boolean };
+    // 查詢工具僅供查詢；排會請改用 delegate_complex_scheduling。
+    if (flags.not_a_query || reply.intent === "schedule") {
+      return okResult({ kind: "not_a_query", message: "這是排程需求，請改用 delegate_complex_scheduling 工具。" });
+    }
+    // 破壞性動作（改期/取消/回覆邀請）不開放外部 agent（唯讀邊界，ZT）。
+    // 這裡是第二道防線；第一道在 runInAppAgent 的 readOnly。
+    if (
+      flags.not_permitted ||
+      reply.intent === "reschedule" ||
+      reply.intent === "cancel" ||
+      reply.intent === "respond_rsvp"
+    ) {
+      return okResult({
+        kind: "not_permitted",
+        message: "查詢工具不支援修改行事曆（改期/取消/回覆邀請）；此類動作僅限使用者本人於站內操作。",
+      });
+    }
+    // trace 陣列是我們自己傳進去的，因此即使 runInAppAgent 走了提早 return 的分支
+    // （例如需要追問），決策紀錄仍在手上——不可依賴 reply.trace。
+    return okResult(shapeForExternalAgent({ ...reply, trace }, { detail, page: args.page, pageSize: args.page_size }));
+  };
+
   server.tool(
-    "query_calendar",
-    "查詢本人日曆：今天/明天有哪些會、幾個會、有沒有空、待回覆的邀請等（唯讀；僅本人的行程，查不到他人）",
-    {
-      question: z.string().min(1).max(1000).describe("自然語言問題，如「明天下午有哪些會」"),
-      viewer_timezone: z.string().optional().describe("IANA 時區，預設 Asia/Taipei"),
-    },
+    "calendar_query",
+    "查詢本人日曆（唯讀，僅本人的行程與本人受邀的共同行程）。" +
+    "強模型建議帶 detail='evidence' 取得決策依據，或直接用 plan/subtasks 自行完成理解以省下本地模型呼叫。",
+    CALENDAR_QUERY_INPUT,
     async (args) => {
       try {
-        await guardTool(auth, "query_calendar", "event.read", { type: "event" });
-        const model = stubOpts.model ?? makeChatModel();
-        // M2M token 的 sub=agent_id；查詢「本人日曆」的本人是授權該 agent 的 user（user_sub）。
-        const onBehalf = auth!.user_sub ?? auth!.sub;
-        const queryAuth = { ...auth!, sub: onBehalf };
-        const reply = await runInAppAgent(queryAuth, args.question, args.viewer_timezone ?? "Asia/Taipei", { model });
-        // query_calendar 僅供查詢；若被判為排會意圖，引導改用 delegate_complex_scheduling。
-        if (reply.intent === "schedule") {
-          return okResult({ kind: "not_a_query", message: "這是排程需求，請改用 delegate_complex_scheduling 工具。" });
-        }
-        return okResult({ kind: reply.kind, message: reply.message, intent: reply.intent, data: reply.data });
+        return await runCalendarQuery(args as Parameters<typeof runCalendarQuery>[0]);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.tool(
+    "query_calendar",
+    "[deprecated：請改用 calendar_query] 查詢本人日曆：今天/明天有哪些會、幾個會、有沒有空、待回覆的邀請等（唯讀）",
+    CALENDAR_QUERY_INPUT,
+    async (args) => {
+      try {
+        return await runCalendarQuery(args as Parameters<typeof runCalendarQuery>[0]);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  // Tool: calendar_server_card — 能力宣告（Microsoft Research 2025 建議）。
+  // 不需 scope：只描述本 server 的 runtime 特性與協作方式，不含任何日曆資料。
+  server.tool(
+    "calendar_server_card",
+    "宣告本 server 的能力、隱私邊界、預期 token 量與延遲，以及強模型建議的協作方式（plan/subtasks/detail）",
+    {},
+    async () => {
+      try {
+        return okResult(buildServerCard());
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  // Tool 8: whoami（身分自我確認；不需額外 scope，只回 token 內既有的身分事實）。
+  // 動機：外部 agent 先前無從知道自己「以誰的身分」操作日曆——token 是 JWT，
+  // 雖可自行解碼取得 user_sub，但那只是 membership UUID，對 agent 與終端使用者
+  // 都不可讀。此工具把身分講清楚，讓 agent 能在回答前確認「我是代 X 在看 X 的日曆」。
+  server.tool(
+    "whoami",
+    "查詢此連線的身分：我是哪個 agent、代表哪位使用者、在哪個 workspace、有哪些 scope",
+    {},
+    async () => {
+      try {
+        if (!auth) throw new McpAuthError("unauthorized", "invalid or missing token");
+        const onBehalf = auth.user_sub ?? auth.sub;
+        const identity = await resolveIdentity(auth.workspace, onBehalf);
+        return okResult({
+          actor_type: auth.user_sub ? "agent" : "user",
+          agent_id: auth.user_sub ? auth.sub : null,
+          workspace: { id: auth.workspace, ...(identity?.workspace ?? {}) },
+          // 代表誰在操作（唯讀查詢與排會都以此人為主體）
+          on_behalf_of: identity
+            ? {
+                membership_id: identity.membership_id,
+                display_name: identity.display_name,
+                email: identity.email,
+                role: identity.role,
+                timezone: identity.timezone,
+              }
+            : { membership_id: onBehalf },
+          scope: auth.scope ?? [],
+          // 提醒能力邊界，避免 agent 誤以為可以改行事曆
+          capabilities: {
+            read_calendar: (auth.scope ?? []).includes("availability.read"),
+            write_events: (auth.scope ?? []).includes("event.write"),
+            book_resources: (auth.scope ?? []).includes("resource.book"),
+            destructive_actions: false,
+          },
+        });
       } catch (e) {
         return errorResult(e);
       }

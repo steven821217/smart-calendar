@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, ShieldOff, RotateCcw } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AgentActivityDrawer } from "@/components/agents/AgentActivityDrawer";
+import { AgentBindCard } from "@/components/agents/AgentBindCard";
 import { ConfirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/feedback";
@@ -22,9 +23,12 @@ export function AgentsPage() {
   const [confirmRevoke, setConfirmRevoke] = useState<AgentSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  const isAdmin = me.role === "admin";
   const { data, isLoading } = useQuery({
     queryKey: ["agents", me.workspace.id],
     queryFn: () => api.listAgents(),
+    // 列出全 workspace 的 agent 需 agent.manage（admin）；成員只用本頁綁定自己的 agent。
+    enabled: isAdmin,
   });
 
   const revokeMut = useMutationWithFeedback({
@@ -78,6 +82,14 @@ export function AgentsPage() {
             </div>
           )}
 
+          {/* 綁定自己的 agent：任何登入使用者皆可（token 權限上限＝本人） */}
+          <AgentBindCard onIssued={() => qc.invalidateQueries({ queryKey: ["agents"] })} />
+
+          {!isAdmin ? (
+            <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              已授權 agent 的總覽與撤銷需要 admin 權限。若要停用你剛綁定的 agent，請聯絡 workspace 管理者。
+            </p>
+          ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">
@@ -120,7 +132,7 @@ export function AgentsPage() {
                         <div className="flex flex-wrap gap-1">
                           {a.scopes.length ? (
                             a.scopes.map((s) => (
-                              <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                              <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-xs">
                                 {s}
                               </span>
                             ))
@@ -134,7 +146,7 @@ export function AgentsPage() {
                       <td className="px-3 py-2">
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
+                            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium",
                             a.revoked
                               ? "bg-destructive/15 text-destructive"
                               : "bg-primary/10 text-foreground",
@@ -166,6 +178,7 @@ export function AgentsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       </div>
 

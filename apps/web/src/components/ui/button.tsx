@@ -11,9 +11,9 @@ const variants: Record<Variant, string> = {
   destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
 };
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm",
+  sm: "h-9 px-3 text-sm",
   md: "h-9 px-4 text-sm",
-  icon: "h-9 w-9",
+  icon: "h-9 w-9 shrink-0",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -26,7 +26,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors",
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-50",
         variants[variant],

@@ -75,9 +75,9 @@ export function RecentEvents() {
                     )}
                     <span className="truncate">{o.title}</span>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     {when === "today" && (
-                      <span className="rounded bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
                         今天
                       </span>
                     )}

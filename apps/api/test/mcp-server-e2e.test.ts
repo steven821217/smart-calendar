@@ -94,7 +94,7 @@ function parse(res: unknown): { isError?: boolean; payload: Record<string, unkno
 }
 
 describe("MCP server E2E (stdio)", () => {
-  it("列出全部 tools（7 個）", async () => {
+  it("列出全部 tools（含 namespace 化新名與 server card）", async () => {
     const { client, transport } = await connectClient();
     try {
       const { tools } = await client.listTools();
@@ -102,12 +102,18 @@ describe("MCP server E2E (stdio)", () => {
       expect(names).toEqual(
         [
           "book_resource",
+          // namespace 化的正名（Microsoft Research 2025 建議正式命名空間避免撞名）
+          "calendar_query",
+          // 能力宣告：runtime 特性、隱私邊界、強模型建議的協作方式
+          "calendar_server_card",
           "create_smart_event",
           "delegate_complex_scheduling",
           "find_available_time_slots",
           "list_event_occurrences",
           "parse_event_from_text",
+          // 舊名保留相容（description 已標 deprecated）
           "query_calendar",
+          "whoami",
         ].sort(),
       );
     } finally {

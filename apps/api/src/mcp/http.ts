@@ -64,11 +64,69 @@ function rpcError(res: ServerResponse, status: number, code: number, message: st
 }
 
 /**
+ * 401 未授權：依 MCP 授權規範帶 `WWW-Authenticate`，指向本資源的 protected resource
+ * metadata。支援自動授權的 client 靠這個標頭才知道「要去哪裡走 OAuth」，否則只能
+ * 請使用者手動貼 token。
+ */
+function unauthorized(req: IncomingMessage, res: ServerResponse, message: string) {
+  // 注意：docker compose 會把未設定的變數傳成空字串，故需把 "" 視同未設定，
+  // 否則會組出相對路徑的 resource_metadata（client 無法解析）。
+  const configured = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  const base =
+    configured ||
+    (() => {
+      const proto = (req.headers["x-forwarded-proto"] as string) || "https";
+      // x-forwarded-host 由 gateway 帶（含埠號）；退而用 Host。
+      const host = (req.headers["x-forwarded-host"] as string) || req.headers.host || "127.0.0.1";
+      return `${proto}://${host}`;
+    })();
+  res.setHeader(
+    "WWW-Authenticate",
+    `Bearer realm="mcp", resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+  );
+  rpcError(res, 401, -32001, message);
+}
+
+/**
+ * DNS rebinding 防護（MCP 傳輸規範建議）。
+ *
+ * 攻擊情境：服務一旦不再只綁 loopback，使用者若在瀏覽器開啟惡意網頁，該網頁可以
+ * 把自己的網域解析到本服務的位址，再從瀏覽器對 /mcp 發請求——瀏覽器會自動帶上
+ * Origin，但攻擊者的頁面拿不到我們的 Bearer token，所以真正的風險是配合其他弱點。
+ * 仍依規範擋掉：只要帶了 Origin 且不在允許清單內，一律拒絕。
+ *
+ * 非瀏覽器的 MCP client（agent 走 HTTP 直連）不會帶 Origin，因此不受影響——
+ * 這是刻意的：我們只在「確定是瀏覽器發起」時才強制檢查。
+ *
+ * MCP_ALLOWED_ORIGINS 以逗號分隔；未設定時只允許 localhost／127.0.0.1（任意埠）。
+ */
+export function originAllowed(origin: string): boolean {
+  const configured = (process.env.MCP_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (configured.includes("*")) return true;
+  if (configured.length > 0) return configured.includes(origin);
+  try {
+    const h = new URL(origin).hostname;
+    return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "::1";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 處理 /mcp 請求。stateful：
  *  - POST + initialize（無 session）：驗 Authorization → 建新 session（綁該 auth）。
  *  - POST/GET/DELETE + 既有 session id：轉交該 session 的 transport。
  */
 export async function handleMcp(req: IncomingMessage, res: ServerResponse) {
+  // DNS rebinding 防護：只在瀏覽器有帶 Origin 時檢查（見 originAllowed 註解）
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin && !originAllowed(origin)) {
+    return rpcError(res, 403, -32000, "forbidden: origin not allowed");
+  }
+
   const sessionId = req.headers[SESSION_HEADER] as string | undefined;
 
   // 既有 session：直接轉交
@@ -92,7 +150,7 @@ export async function handleMcp(req: IncomingMessage, res: ServerResponse) {
   // 對外授權（MCP-7）：initialize 必須帶有效 Bearer token
   const auth = verifyJwt(req.headers.authorization);
   if (!auth) {
-    return rpcError(res, 401, -32001, "unauthorized: missing or invalid Bearer token");
+    return unauthorized(req, res, "unauthorized: missing or invalid Bearer token");
   }
 
   // 為此 session 建立綁定該 auth 的 MCP server 實例

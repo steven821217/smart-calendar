@@ -219,7 +219,8 @@ export interface RsvpInvitation {
 
 export interface CommitResult {
   event: Record<string, unknown>;
-  booking: Record<string, unknown>;
+  /** 無資源需求的行程沒有 resource_booking → null。 */
+  booking: Record<string, unknown> | null;
   reminders: Array<Record<string, unknown>>;
   actual_usage: { start_utc: string; end_utc: string };
   // 委派型成員的一鍵回覆邀請（feature-team-groups）
@@ -279,20 +280,25 @@ export async function commitSchedulingPlan(
     }
 
     // 3) booking（含 buffer）— EXCLUDE gist 命中 → 23P01
-    let booking: Record<string, unknown>;
-    try {
-      booking = (
-        await c.query(
-          `INSERT INTO resource_bookings(workspace_id,resource_id,event_id,start_utc,end_utc)
-           VALUES($1,$2,$3,$4,$5) RETURNING *`,
-          [ctx.workspace, plan.resource_id, ev.id, plan.booking_start_utc, plan.booking_end_utc],
-        )
-      ).rows[0];
-    } catch (e: unknown) {
-      if (typeof e === "object" && e && (e as { code?: string }).code === "23P01") {
-        throw new SchedulingCommitError("booking_conflict", "resource already booked for this time range");
+    // 3) booking（含 buffer）— EXCLUDE gist 命中 → 23P01
+    // 沒有資源需求的行程（打球、見客戶、自己的工作時段）本來就不該有 resource_booking；
+    // 先前這裡無條件 insert，導致純事件根本無法落實。
+    let booking: Record<string, unknown> | null = null;
+    if (plan.resource_id) {
+      try {
+        booking = (
+          await c.query(
+            `INSERT INTO resource_bookings(workspace_id,resource_id,event_id,start_utc,end_utc)
+             VALUES($1,$2,$3,$4,$5) RETURNING *`,
+            [ctx.workspace, plan.resource_id, ev.id, plan.booking_start_utc, plan.booking_end_utc],
+          )
+        ).rows[0];
+      } catch (e: unknown) {
+        if (typeof e === "object" && e && (e as { code?: string }).code === "23P01") {
+          throw new SchedulingCommitError("booking_conflict", "resource already booked for this time range");
+        }
+        throw e;
       }
-      throw e;
     }
 
     // 4) reminders（功能 A）：需交接資源 → 會前 lead 分鐘 email

@@ -128,3 +128,59 @@ export function verifyRsvpToken(token: string, expectedWorkspace?: string): Rsvp
   }
   return claims;
 }
+
+// ---------------------------------------------------------------------------
+// Action token（第三波：破壞性動作二次確認）。
+// 站內 agent 判定 reschedule/cancel 後，先簽一個 action_token 描述「要對哪個事件做什麼」，
+// 回預覽不落實；使用者確認後帶 token 回來執行——免重新定位、且簽章防竄改（不能改事件/新時間）。
+// 復用相同 HMAC(HS256) 簽章；claims 綁 workspace（ZT-5），落實時再以 ctx.workspace 核對。
+// ---------------------------------------------------------------------------
+
+export interface ActionClaims {
+  kind: "action";
+  action: "reschedule" | "cancel";
+  workspace: string;
+  event_id: string;
+  scope: "this" | "this_and_future" | "all";
+  occurrence_start_utc: string; // 定位到的 occurrence（scope=this 需要）
+  // reschedule 專用：新起訖（UTC）
+  new_start_utc?: string;
+  new_end_utc?: string;
+  title: string;
+  timezone: string;
+}
+
+const ACTION_TTL_SEC = 900; // 15 分鐘：確認要快
+
+export function signActionToken(claims: ActionClaims, ttlSec = ACTION_TTL_SEC): string {
+  const now = Math.floor(Date.now() / 1000);
+  const body = { ...claims, iat: now, exp: now + ttlSec };
+  const p = b64url(JSON.stringify(body));
+  const sig = b64url(crypto.createHmac("sha256", SECRET).update(p).digest());
+  return `${p}.${sig}`;
+}
+
+export function verifyActionToken(token: string, expectedWorkspace: string): ActionClaims {
+  const parts = token.split(".");
+  if (parts.length !== 2) throw new OptionTokenError("malformed action_token");
+  const [p, sig] = parts;
+  const expected = b64url(crypto.createHmac("sha256", SECRET).update(p).digest());
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    throw new OptionTokenError("invalid action_token signature");
+  }
+  let claims: ActionClaims & { exp?: number };
+  try {
+    claims = JSON.parse(Buffer.from(p, "base64").toString("utf8"));
+  } catch {
+    throw new OptionTokenError("undecodable action_token");
+  }
+  if (claims.kind !== "action") throw new OptionTokenError("not an action_token");
+  if (typeof claims.exp === "number" && claims.exp < Math.floor(Date.now() / 1000)) {
+    throw new OptionTokenError("expired action_token");
+  }
+  if (claims.workspace !== expectedWorkspace) {
+    throw new OptionTokenError("action_token workspace mismatch");
+  }
+  if (!claims.event_id || !claims.action) throw new OptionTokenError("incomplete action_token");
+  return claims;
+}

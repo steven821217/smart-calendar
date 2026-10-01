@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import pg, { type PoolClient } from "pg";
 import { withWorkspace } from "../db/pool.js";
 
 /**
@@ -53,6 +53,99 @@ export async function listWorkspaceMembers(workspaceId: string): Promise<Workspa
         ORDER BY u.display_name`,
     );
     return r.rows as WorkspaceMemberRow[];
+  });
+}
+
+/**
+ * 依 email 找本工作區的成員。
+ *
+ * 用途：邀請與會者時以 email 找人。刻意**只查本工作區**——回傳全站使用者會變成
+ * email 列舉面（任何成員都能探測某個 email 是否在本平台註冊過）。
+ * 查不到就是查不到，由呼叫端提示「請先把他加入工作區」。
+ *
+ * email 欄位是 citext，比對本身不分大小寫。
+ */
+export async function findWorkspaceMemberByEmail(
+  workspaceId: string,
+  email: string,
+): Promise<WorkspaceMemberRow | null> {
+  return withWorkspace(workspaceId, async (c) => {
+    const r = await c.query(
+      `SELECT m.id AS membership_id, u.id AS user_id, u.display_name, m.role
+         FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.status = 'active' AND u.email = $1::citext
+        LIMIT 1`,
+      [email.trim()],
+    );
+    return (r.rows[0] as WorkspaceMemberRow) ?? null;
+  });
+}
+
+/** 加入工作區成員的結果；kind 讓路由層決定 HTTP 狀態與訊息。 */
+export type AddWorkspaceMemberResult =
+  | { kind: "created"; member: WorkspaceMemberRow }
+  | { kind: "not_registered" }
+  | { kind: "already_member" };
+
+/**
+ * 把「已註冊」的使用者加入本 workspace 並指定角色（admin 專用）。
+ *
+ * 設計取捨（刻意不做邀請信流程）：對方必須先自己註冊，leader 再用 email 把他加進來。
+ * 少一套 token/寄信/接受頁，也不會有「邀請未接受」的中間狀態。
+ * 副作用：同時為他在本 workspace 建一本個人日曆，他自己建立的事件才有地方放，
+ * 且個人隔離查詢（listOccurrencesForMember）是以 calendars.owner_id 判斷本人事件。
+ *
+ * 注意：users 是全域表、不受 workspace RLS 管，故 email 查詢用 admin 連線；
+ * membership/calendar 的寫入仍在 withWorkspace 交易內（RLS 兜底）。
+ */
+export async function addWorkspaceMemberByEmail(
+  workspaceId: string,
+  email: string,
+  role: "admin" | "scheduler" | "member",
+  timezone?: string,
+): Promise<AddWorkspaceMemberResult> {
+  const admin = new pg.Pool({
+    connectionString:
+      process.env.ADMIN_DATABASE_URL ??
+      `postgres://postgres:${process.env.POSTGRES_PASSWORD ?? "change-me-postgres"}@localhost:5432/${process.env.DB_NAME ?? "calendar"}`,
+  });
+  let userId: string;
+  let displayName: string;
+  try {
+    const u = await admin.query(
+      `SELECT id, display_name FROM users WHERE email = $1 AND password_hash IS NOT NULL LIMIT 1`,
+      [email],
+    );
+    if (!u.rows[0]) return { kind: "not_registered" };
+    userId = u.rows[0].id as string;
+    displayName = u.rows[0].display_name as string;
+  } finally {
+    await admin.end();
+  }
+
+  return withWorkspace(workspaceId, async (c) => {
+    const existing = await c.query(
+      `SELECT id FROM memberships WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    if (existing.rows[0]) return { kind: "already_member" } as AddWorkspaceMemberResult;
+
+    const membershipId = (
+      await c.query(
+        `INSERT INTO memberships(workspace_id,user_id,role,timezone)
+         VALUES($1,$2,$3,COALESCE($4,'UTC')) RETURNING id`,
+        [workspaceId, userId, role, timezone ?? null],
+      )
+    ).rows[0].id as string;
+    await c.query(`INSERT INTO calendars(workspace_id,owner_id,name) VALUES($1,$2,$3)`, [
+      workspaceId,
+      membershipId,
+      `${displayName} calendar`,
+    ]);
+    return {
+      kind: "created",
+      member: { membership_id: membershipId, user_id: userId, display_name: displayName, role },
+    } as AddWorkspaceMemberResult;
   });
 }
 

@@ -8,6 +8,8 @@
     "db:down": "docker compose down",
     "migrate": "pnpm --filter @scal/api migrate",
     "seed": "pnpm --filter @scal/api seed",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "eval": "node eval/run.mjs",
+    "eval:seed": "node eval/run.mjs --seed"
   }
 }

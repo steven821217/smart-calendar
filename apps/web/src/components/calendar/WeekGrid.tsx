@@ -73,7 +73,7 @@ export function WeekGrid({ anchor, tz, occurrences, onEventClick }: Props) {
           {Array.from({ length: 24 }, (_, h) => (
             <div
               key={h}
-              className="absolute right-1 -translate-y-1/2 text-[10px] text-muted-foreground"
+              className="absolute right-1 -translate-y-1/2 text-xs text-muted-foreground"
               style={{ top: h * HOUR_PX }}
             >
               {String(h).padStart(2, "0")}:00
@@ -108,7 +108,7 @@ export function WeekGrid({ anchor, tz, occurrences, onEventClick }: Props) {
                   zIndex: 1,
                 }}
                 className={cn(
-                  "overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight border",
+                  "overflow-hidden rounded px-1 py-0.5 text-left text-xs leading-tight border",
                   p.occ.source === "agent"
                     ? "bg-violet-500/15 text-foreground border-violet-500/30 hover:bg-violet-500/25"
                     : p.occ.is_exception

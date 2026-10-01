@@ -84,7 +84,7 @@ export function RsvpContent({ eventId, token, onResponded }: RsvpContentProps) {
               {eventInfo.location && (
                 <div className="mt-0.5 text-xs text-muted-foreground">📍 {eventInfo.location}</div>
               )}
-              <div className="mt-1 text-[11px] text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground">
                 時間依此事件時區（{eventInfo.timezone}）顯示
               </div>
             </div>

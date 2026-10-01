@@ -17,9 +17,18 @@ import type { ChatModel } from "../llm.js";
  *  3) model 回傳非法/例外 → 一律 fallback 規則結果（絕不卡死）。
  */
 
-export type Intent = "list_events" | "count_events" | "find_free" | "list_pending" | "list_members" | "schedule";
+export type Intent =
+  | "list_events" | "count_events" | "find_free" | "list_pending" | "list_members" | "schedule"
+  | "next_event" | "event_detail" | "search_events" | "events_with_person" | "compare_load" | "stats"
+  | "reschedule" | "cancel" | "respond_rsvp"
+  | "out_of_scope";
 
-const INTENTS: Intent[] = ["list_events", "count_events", "find_free", "list_pending", "list_members", "schedule"];
+const INTENTS: Intent[] = [
+  "list_events", "count_events", "find_free", "list_pending", "list_members", "schedule",
+  "next_event", "event_detail", "search_events", "events_with_person", "compare_load", "stats",
+  "reschedule", "cancel", "respond_rsvp",
+  "out_of_scope",
+];
 
 const IntentSchema = z.object({
   intent: z.enum(["list_events", "count_events", "find_free", "list_pending", "list_members", "schedule", "unknown"]),

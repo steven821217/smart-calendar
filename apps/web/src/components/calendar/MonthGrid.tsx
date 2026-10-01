@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Plus, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { Sparkles } from "lucide-react";
 import { monthGridDays, isSameDay, isSameMonth, nowInViewer } from "@/lib/calendar";
 import { utcToViewer, fmtTime } from "@/lib/time";
 import { monthCellId } from "@/lib/drag";
@@ -7,124 +7,187 @@ import { DraggableChip, DroppableCell } from "@/components/calendar/dragParts";
 import type { Occurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+const WEEKDAYS = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+const WHEEL_THRESHOLD = 64;
+const WHEEL_COOLDOWN_MS = 420;
 
 interface Props {
-  anchor: Date; // 觀看者時區的月份錨點
+  anchor: Date;
   tz: string;
   occurrences: Occurrence[];
   selectedDay?: Date | null;
-  onDayClick?: (day: Date) => void;
-  onDayCreate?: (day: Date) => void;
+  /** 點日期格（或「還有 N 個事件」）→ 開啟當日完整行程。 */
+  onDayOpen?: (day: Date) => void;
   onEventClick?: (occ: Occurrence) => void;
+  onNavigateMonth?: (direction: -1 | 1) => void;
 }
 
-/** 本地日期 → 該日 00:00 的 ISO（yyyy-MM-ddT00:00，供 drop 落點解碼）。 */
 function dayIso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}T00:00`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T00:00`;
 }
 
-/** 月視圖：grid-cols-7 auto-rows-fr，42 格；非本月淡化、今天高亮（UI-17）。 */
-export function MonthGrid({ anchor, tz, occurrences, selectedDay, onDayClick, onDayCreate, onEventClick }: Props) {
+/** 月視圖：42 格月曆；滾輪累積超過門檻後切月，並以冷卻避免觸控板慣性連跳。 */
+export function MonthGrid({
+  anchor,
+  tz,
+  occurrences,
+  selectedDay,
+  onDayOpen,
+  onEventClick,
+  onNavigateMonth,
+}: Props) {
   const days = useMemo(() => monthGridDays(anchor), [anchor]);
   const today = useMemo(() => nowInViewer(tz), [tz]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const wheelDeltaRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
+  const resetTimerRef = useRef<number>();
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !onNavigateMonth) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("input, textarea, select, [data-wheel-native]")) return;
+
+      const now = Date.now();
+      if (now < cooldownUntilRef.current) {
+        event.preventDefault();
+        return;
+      }
+
+      wheelDeltaRef.current += event.deltaY;
+      window.clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = window.setTimeout(() => {
+        wheelDeltaRef.current = 0;
+      }, 180);
+
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_THRESHOLD) return;
+      event.preventDefault();
+      onNavigateMonth(wheelDeltaRef.current > 0 ? 1 : -1);
+      wheelDeltaRef.current = 0;
+      cooldownUntilRef.current = now + WHEEL_COOLDOWN_MS;
+    };
+
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      root.removeEventListener("wheel", onWheel);
+      window.clearTimeout(resetTimerRef.current);
+    };
+  }, [onNavigateMonth]);
 
   const byDay = useMemo(() => {
-    const m = new Map<string, Occurrence[]>();
-    for (const o of occurrences) {
-      const z = utcToViewer(o.occurrence_start_utc, tz);
-      const key = `${z.getFullYear()}-${z.getMonth()}-${z.getDate()}`;
-      (m.get(key) ?? m.set(key, []).get(key)!).push(o);
+    const grouped = new Map<string, Occurrence[]>();
+    for (const occurrence of occurrences) {
+      const local = utcToViewer(occurrence.occurrence_start_utc, tz);
+      const key = `${local.getFullYear()}-${local.getMonth()}-${local.getDate()}`;
+      (grouped.get(key) ?? grouped.set(key, []).get(key)!).push(occurrence);
     }
-    return m;
+    return grouped;
   }, [occurrences, tz]);
 
   const keyOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="grid grid-cols-7 border-b border-border text-xs text-muted-foreground">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="px-2 py-2 text-center font-medium">
-            {w}
+    <div
+      ref={rootRef}
+      className="flex h-full min-w-[700px] flex-col bg-background"
+      role="region"
+      aria-label={`${anchor.getFullYear()} 年 ${anchor.getMonth() + 1} 月月曆；可使用滑鼠滾輪切換月份`}
+      title="在月曆上使用滑鼠滾輪切換月份"
+    >
+      <div className="grid h-10 shrink-0 grid-cols-7 border-b border-border bg-muted/25 text-xs font-medium text-muted-foreground">
+        {WEEKDAYS.map((weekday, index) => (
+          <div key={weekday} className={cn("flex items-center justify-center", index >= 5 && "text-foreground/70")}>
+            {weekday}
           </div>
         ))}
       </div>
-      <div className="grid flex-1 grid-cols-7 auto-rows-fr">
-        {days.map((d) => {
-          const inMonth = isSameMonth(d, anchor);
-          const isToday = isSameDay(d, today);
-          const isSelected = selectedDay != null && isSameDay(d, selectedDay);
-          const dayEvents = byDay.get(keyOf(d)) ?? [];
+      <div className="grid min-h-0 flex-1 grid-cols-7 auto-rows-fr border-l border-border">
+        {days.map((day, index) => {
+          const inMonth = isSameMonth(day, anchor);
+          const isToday = isSameDay(day, today);
+          const isSelected = selectedDay != null && isSameDay(day, selectedDay);
+          const dayEvents = byDay.get(keyOf(day)) ?? [];
           return (
             <DroppableCell
-              key={d.toISOString()}
-              id={monthCellId(dayIso(d))}
-              onClick={() => onDayClick?.(d)}
-              ariaLabel={`${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`}
+              key={day.toISOString()}
+              id={monthCellId(dayIso(day))}
+              onClick={() => onDayOpen?.(day)}
+              ariaLabel={`${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日，${dayEvents.length} 個事件`}
               className={cn(
-                "flex min-h-[96px] cursor-pointer flex-col gap-1 border-b border-r border-border p-1.5 align-top transition-colors hover:bg-accent/50",
-                !inMonth && "bg-muted/30 text-muted-foreground",
-                isSelected && "bg-accent/40 ring-2 ring-inset ring-primary",
+                "group flex min-h-[92px] cursor-pointer flex-col gap-1.5 border-b border-r border-border p-2 align-top transition-colors hover:bg-accent/50",
+                !inMonth && "bg-muted/20 text-muted-foreground",
+                index % 7 >= 5 && inMonth && "bg-muted/10",
+                isSelected && "bg-accent/60 ring-1 ring-inset ring-ring",
               )}
             >
-              <div className="flex items-center justify-between">
-                <span
+              <div className="flex h-7 items-center justify-between gap-1">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDayOpen?.(day);
+                  }}
+                  title={dayEvents.length > 0 ? `查看 ${day.getMonth() + 1}月${day.getDate()}日的 ${dayEvents.length} 個行程` : `查看 ${day.getMonth() + 1}月${day.getDate()}日`}
+                  aria-label={`查看 ${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日的完整行程（${dayEvents.length} 個）`}
                   className={cn(
-                    "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    isToday && "bg-primary text-primary-foreground font-semibold",
+                    "inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-sm tabular-nums transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    !inMonth && "opacity-60",
+                    isToday
+                      ? "bg-primary font-semibold text-primary-foreground shadow-sm hover:opacity-90"
+                      : "hover:bg-background hover:shadow-sm",
                   )}
                 >
-                  {d.getDate()}
-                </span>
-                {isSelected && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDayCreate?.(d);
-                    }}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded bg-primary text-primary-foreground hover:opacity-90"
-                    aria-label={`在 ${d.getMonth() + 1}月${d.getDate()}日 建立事件`}
-                    title="建立事件"
-                  >
-                    <Plus className="h-3 w-3" aria-hidden />
-                  </button>
+                  {day.getDate()}
+                </button>
+                {dayEvents.length > 0 && (
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                    {dayEvents.length}
+                  </span>
                 )}
               </div>
-              <div className="flex flex-col gap-0.5 overflow-hidden">
-                {dayEvents.slice(0, 3).map((o) => (
+              <div className="flex min-h-0 flex-col gap-1 overflow-hidden">
+                {dayEvents.slice(0, 3).map((occurrence) => (
                   <DraggableChip
-                    key={`${o.event_id}-${o.occurrence_start_utc}`}
-                    occ={o}
-                    title={o.source === "agent" ? `${o.title}（AI 助理排程）` : o.title}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEventClick?.(o);
+                    key={`${occurrence.event_id}-${occurrence.occurrence_start_utc}`}
+                    occ={occurrence}
+                    title={occurrence.source === "agent" ? `${occurrence.title}（AI 助理排程）` : occurrence.title}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEventClick?.(occurrence);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] leading-tight",
-                      o.source === "agent"
-                        ? "bg-violet-500/15 text-foreground ring-1 ring-inset ring-violet-500/30"
-                        : o.is_exception
-                          ? "bg-accent"
-                          : "bg-primary/10 text-foreground",
+                      "flex min-h-6 w-full items-center gap-1.5 truncate rounded-md border border-transparent px-1.5 py-1 text-left text-xs leading-none transition-colors",
+                      occurrence.source === "agent"
+                        ? "border-violet-500/25 bg-violet-500/10 text-foreground hover:bg-violet-500/15"
+                        : occurrence.is_exception
+                          ? "border-border bg-accent text-accent-foreground"
+                          : "bg-primary/10 text-foreground hover:bg-primary/15",
                     )}
                   >
-                    {o.source === "agent" && (
-                      <Sparkles className="h-2.5 w-2.5 shrink-0 text-violet-500" aria-label="AI 助理排程" />
-                    )}
-                    <span className="truncate">
-                      {fmtTime(o.occurrence_start_utc, tz)} {o.title}
+                    {occurrence.source === "agent" && <Sparkles className="h-3 w-3 shrink-0 text-violet-500" aria-label="AI 助理排程" />}
+                    <span className="truncate tabular-nums">
+                      {fmtTime(occurrence.occurrence_start_utc, tz)} {occurrence.title}
                     </span>
                   </DraggableChip>
                 ))}
                 {dayEvents.length > 3 && (
-                  <span className="px-1 text-[10px] text-muted-foreground">
-                    +{dayEvents.length - 3} 更多
-                  </span>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDayOpen?.(day);
+                    }}
+                    className="mt-0.5 w-full rounded-md px-1.5 py-0.5 text-left text-xs font-medium text-primary underline-offset-2 transition-colors hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    aria-label={`查看 ${day.getMonth() + 1}月${day.getDate()}日的全部 ${dayEvents.length} 個行程`}
+                    title={dayEvents.slice(3).map((event) => event.title).join("、")}
+                  >
+                    還有 {dayEvents.length - 3} 個，查看全部
+                  </button>
                 )}
               </div>
             </DroppableCell>

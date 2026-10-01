@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { registerAuth } from "./auth/pep.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { registerOAuthRoutes } from "./auth/oauth-routes.js";
+import { registerOAuthMetadataRoutes } from "./auth/oauth-metadata.js";
 import { registerEventRoutes } from "./events/routes.js";
 import { registerCalendarRoutes } from "./calendars/routes.js";
 import { registerSchedulingRoutes } from "./scheduling/routes.js";
@@ -33,6 +34,7 @@ export function buildServer() {
   registerObservability(app); // 指標 + /metrics + 每請求 workspace 日誌（需在 auth 後，onResponse 才讀得到 req.auth）
   registerAuthRoutes(app); // login / me
   registerOAuthRoutes(app); // OAuth 2.1 consent / token（mcp.md §3）
+  registerOAuthMetadataRoutes(app); // OAuth 自動發現 metadata（RFC 9728 / RFC 8414）
   registerEventRoutes(app);
   registerCalendarRoutes(app);
   registerSchedulingRoutes(app);

@@ -14,17 +14,34 @@ x-app-env: &app-env
   SMTP_PORT: "1025"
   JWT_SECRET: ${JWT_SECRET:-change-me-32bytes-minimum-secret-value}
   PGTZ: UTC
+  # 登入（3.1）：seed 設定示範帳號密碼；登入失敗節流上限/視窗
+  SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-demo-password-1234}
+  LOGIN_MAX_FAILS: ${LOGIN_MAX_FAILS:-8}
+  LOGIN_FAIL_WINDOW_SEC: ${LOGIN_FAIL_WINDOW_SEC:-900}
+  # 自助註冊（建立新 workspace）：可關閉；per-IP 上限防濫用
+  REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-1}
+  REGISTER_MAX_PER_IP: ${REGISTER_MAX_PER_IP:-5}
+  REGISTER_WINDOW_SEC: ${REGISTER_WINDOW_SEC:-3600}
   # 委員會 LLM（無金鑰時委員會走 fail-closed；設 MCP_STUB_MODEL=1 可本機 stub 驗證）
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
   # 容器內連 host 上的 ollama：預設 host.docker.internal（需搭配各服務的 extra_hosts）。
   # 走雲端 OpenAI 則把 .env 的 LLM_BASE_URL 留空即可。
   LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+  # Query-conditioned ICL（訓練-free 提升小模型分類）：示例數 0=關閉；embedding 模型須在同一端點。
+  INAPP_ICL_K: ${INAPP_ICL_K:-4}
+  INAPP_SPECULATE: "${INAPP_SPECULATE:-1}"
+  INAPP_EMBED_MODEL: ${INAPP_EMBED_MODEL:-embeddinggemma:latest}
+  INAPP_EMBED_TIMEOUT_MS: ${INAPP_EMBED_TIMEOUT_MS:-1500}
   RESOURCE_HANDOVER_BUFFER_MINUTES: "15"
   RESOURCE_VEHICLE_TYPES: equipment
   VEHICLE_REMINDER_LEAD_MINUTES: "30"
   OAUTH_CODE_TTL_SEC: "300"
-  OAUTH_TOKEN_TTL_SEC: "3600"
+  # PoC：不做 refresh token，改用長效 access token（預設 30 天）+ 即時撤銷。
+  OAUTH_TOKEN_TTL_SEC: ${OAUTH_TOKEN_TTL_SEC:-2592000}
+  # OAuth 自動發現：對外基底 URL 與 redirect_uri 白名單
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+  OAUTH_REDIRECT_ALLOWLIST: ${OAUTH_REDIRECT_ALLOWLIST:-}
 
 services:
   db:
@@ -115,6 +132,9 @@ services:
       <<: *app-env
       MCP_HTTP_HOST: 0.0.0.0 # 容器內綁全介面；對外仍只經 gateway
       MCP_HTTP_PORT: "3001"
+      # DNS rebinding 防護：瀏覽器帶 Origin 時的允許清單（逗號分隔）。
+      # 未設定時只允許 localhost；非瀏覽器 client 不帶 Origin，不受影響。
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       MCP_STUB_MODEL: ${MCP_STUB_MODEL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway" # Linux：委員會連 host 上的 ollama
@@ -140,9 +160,14 @@ services:
     build: { context: ., dockerfile: gateway/Dockerfile }
     environment:
       GATEWAY_HOST: ${GATEWAY_HOST:-localhost}
+      # 自簽憑證要額外納入的位址（逗號分隔）。對方用哪個位址連，那個位址就必須在 SAN 裡。
+      GATEWAY_SAN_IPS: ${GATEWAY_SAN_IPS:-}
+      GATEWAY_SAN_DNS: ${GATEWAY_SAN_DNS:-}
     ports:
-      - "127.0.0.1:9080:80"
-      - "127.0.0.1:9443:443"
+      # 預設只綁 loopback（安全預設）。要讓同一內網的其他機器連線，
+      # 在 .env 設 GATEWAY_BIND=0.0.0.0（或指定某張網卡的 IP，範圍更小）。
+      - "${GATEWAY_BIND:-127.0.0.1}:9080:80"
+      - "${GATEWAY_BIND:-127.0.0.1}:9443:443"
     volumes:
       - gatewaycerts:/etc/nginx/certs
     depends_on:

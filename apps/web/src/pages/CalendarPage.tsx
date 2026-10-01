@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useMutationWithFeedback } from "@/lib/useMutationWithFeedback";
@@ -19,6 +19,7 @@ import { AppShell } from "@/components/AppShell";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { WeekGrid } from "@/components/calendar/WeekGrid";
 import { EventDialog, type EventFormValue, type Scope } from "@/components/calendar/EventDialog";
+import { DayAgendaDialog } from "@/components/calendar/DayAgendaDialog";
 import { DragScopePrompt } from "@/components/calendar/DragScopePrompt";
 import { NLQuickAdd } from "@/components/calendar/NLQuickAdd";
 import { JumpPicker } from "@/components/calendar/JumpPicker";
@@ -62,6 +63,8 @@ export function CalendarPage() {
   const [view, setView] = useState<View>("month");
   const [anchor, setAnchor] = useState<Date>(() => nowInViewer(tz));
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  /** 開啟中的「當日完整行程」（月視圖每格只放得下少數事件，其餘在此檢視）。 */
+  const [agendaDay, setAgendaDay] = useState<Date | null>(null);
   const [dialog, setDialog] = useState<
     | { mode: "create"; initial: EventFormValue }
     | { mode: "edit"; occ: Occurrence; initial: EventFormValue; recurring: boolean }
@@ -98,6 +101,16 @@ export function CalendarPage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["occurrences"] });
 
+  // 編輯既有事件時載入其與會者名單（顯示誰已接受／待回覆，並預先勾選）
+  const editingEventId = dialog?.mode === "edit" ? dialog.occ.event_id : null;
+  const participantsQ = useQuery({
+    queryKey: ["event-participants", editingEventId],
+    queryFn: () => api.getEvent(editingEventId!),
+    enabled: !!editingEventId,
+    staleTime: 0,
+  });
+  const editingParticipants = participantsQ.data?.participants ?? [];
+
   const createMut = useMutationWithFeedback({
     successMessage: "事件已建立",
     mutation: {
@@ -112,6 +125,7 @@ export function CalendarPage() {
             rrule: v.rrule,
             visibility: v.visibility,
             location: v.location,
+            participants: (v.attendees ?? []).map((id) => ({ member_id: id })),
           },
           crypto.randomUUID(),
         ),
@@ -126,15 +140,19 @@ export function CalendarPage() {
   const updateMut = useMutationWithFeedback({
     successMessage: "事件已更新",
     mutation: {
-      mutationFn: ({ occ, v, scope }: { occ: Occurrence; v: EventFormValue; scope: Scope }) =>
-        api.updateEvent(occ.event_id, scope, {
+      mutationFn: async ({ occ, v, scope }: { occ: Occurrence; v: EventFormValue; scope: Scope }) => {
+        // 與會者是獨立資源（不隨 recurrence scope 分岔），事件更新成功後再同步一次
+        const r = await api.updateEvent(occ.event_id, scope, {
           title: v.title,
           start_utc: localToUtcIso(v.start_local, tz),
           end_utc: localToUtcIso(v.end_local, tz),
           timezone: tz,
           visibility: v.visibility,
           occurrence_start_utc: occ.occurrence_start_utc,
-        }),
+        });
+        if (v.attendees) await api.setEventParticipants(occ.event_id, v.attendees);
+        return r;
+      },
       onSuccess: () => {
         setDialog(null);
         invalidate();
@@ -260,8 +278,15 @@ export function CalendarPage() {
 
   const occurrences = data?.occurrences ?? [];
 
+  // 當日行程彈窗的資料：沿用既有查詢結果，依觀看者時區比對是否同一天
+  const agendaOccurrences = useMemo(() => {
+    if (!agendaDay) return [];
+    return occurrences.filter((occ) => isSameDay(utcToViewer(occ.occurrence_start_utc, tz), agendaDay));
+  }, [agendaDay, occurrences, tz]);
+
   const openCreate = (day?: Date) => {
-    const base = day ?? nowInViewer(tz);
+    // 複製一份再改時間：day 可能來自月曆格／彈窗 state，不可就地修改
+    const base = new Date((day ?? nowInViewer(tz)).getTime());
     base.setHours(9, 0, 0, 0);
     const end = new Date(base.getTime() + 60 * 60000);
     setMutErr(null);
@@ -319,9 +344,18 @@ export function CalendarPage() {
           "M/d",
         )}`;
 
-  const step = (dir: 1 | -1) =>
-    setAnchor((a) => (view === "month" ? addMonths(a, dir) : addWeeks(a, dir)));
-  const stepYear = (dir: 1 | -1) => setAnchor((a) => addYears(a, dir));
+  const navigateMonth = useCallback((dir: 1 | -1) => {
+    setSelectedDay(null);
+    setAnchor((current) => addMonths(current, dir));
+  }, []);
+  const step = (dir: 1 | -1) => {
+    setSelectedDay(null);
+    setAnchor((current) => (view === "month" ? addMonths(current, dir) : addWeeks(current, dir)));
+  };
+  const stepYear = (dir: 1 | -1) => {
+    setSelectedDay(null);
+    setAnchor((current) => addYears(current, dir));
+  };
 
   // 「今天」是否已在當前檢視範圍內（給按鈕 disabled 回饋）
   const todayDate = nowInViewer(tz);
@@ -332,72 +366,74 @@ export function CalendarPage() {
 
   const topbar = (
     <>
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" onClick={() => stepYear(-1)} aria-label="上一年" title="上一年">
+      <div className="flex h-9 items-center rounded-lg border border-border bg-muted/30 p-0.5 shadow-sm">
+        <Button className="h-8 w-8" variant="ghost" size="icon" onClick={() => stepYear(-1)} aria-label="上一年" title="上一年">
           <ChevronsLeft className="h-4 w-4" aria-hidden />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => step(-1)} aria-label={view === "month" ? "上一個月" : "上一週"}>
+        <Button className="h-8 w-8" variant="ghost" size="icon" onClick={() => step(-1)} aria-label={view === "month" ? "上一個月" : "上一週"}>
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => step(1)} aria-label={view === "month" ? "下一個月" : "下一週"}>
+        <Button className="h-8 w-8" variant="ghost" size="icon" onClick={() => step(1)} aria-label={view === "month" ? "下一個月" : "下一週"}>
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => stepYear(1)} aria-label="下一年" title="下一年">
+        <Button className="h-8 w-8" variant="ghost" size="icon" onClick={() => stepYear(1)} aria-label="下一年" title="下一年">
           <ChevronsRight className="h-4 w-4" aria-hidden />
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setAnchor(nowInViewer(tz))}
-          disabled={viewingToday}
-          title={viewingToday ? "已在本" + (view === "month" ? "月" : "週") : "回到今天"}
-        >
-          今天
-        </Button>
       </div>
-      {/* 兩個視圖都用可點標題快速跳任意月/年；週視圖另顯示所在週區間 */}
-      <div className="flex items-center gap-2">
-        <JumpPicker anchor={anchor} onPick={setAnchor} />
-        {view === "week" && (
-          <span className="text-xs text-muted-foreground tabular-nums">{label}</span>
-        )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setSelectedDay(null);
+          setAnchor(nowInViewer(tz));
+        }}
+        disabled={viewingToday}
+        title={viewingToday ? `已在本${view === "month" ? "月" : "週"}` : "回到今天"}
+      >
+        今天
+      </Button>
+      <div className="flex min-w-0 items-center gap-2">
+        <JumpPicker
+          anchor={anchor}
+          onPick={(date) => {
+            setSelectedDay(null);
+            setAnchor(date);
+          }}
+        />
+        {view === "week" && <span className="hidden text-xs text-muted-foreground tabular-nums lg:inline">{label}</span>}
       </div>
-      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground" title="時間依你的時區顯示">
+      <span className="hidden rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground 2xl:inline" title="時間依你的時區顯示">
         {tz}
       </span>
       <span
-        className="flex items-center gap-1 text-[11px] text-muted-foreground"
-        title={
-          isFetching
-            ? "同步中…"
-            : `最後更新 ${new Intl.DateTimeFormat("zh-TW", { timeStyle: "medium", timeZone: tz }).format(new Date(dataUpdatedAt))}（每 15 秒自動同步 agent 變更）`
-        }
+        className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:flex"
+        title={isFetching ? "同步中…" : `最後更新 ${new Intl.DateTimeFormat("zh-TW", { timeStyle: "medium", timeZone: tz }).format(new Date(dataUpdatedAt))}`}
+        aria-live="polite"
       >
-        <span
-          className={cn(
-            "inline-block h-1.5 w-1.5 rounded-full",
-            isFetching ? "animate-pulse bg-primary" : "bg-emerald-500",
-          )}
-          aria-hidden
-        />
-        {isFetching ? "同步中" : "即時"}
+        <span className={cn("inline-block h-2 w-2 rounded-full", isFetching ? "animate-pulse bg-amber-400" : "bg-emerald-500")} aria-hidden />
+        {isFetching ? "同步中" : "已同步"}
       </span>
-      <div className="ml-2 flex rounded-md border border-border p-0.5">
-        {(["month", "week"] as View[]).map((v) => (
+      <div className="flex h-9 items-center rounded-lg border border-border bg-muted/30 p-0.5 shadow-sm" aria-label="日曆檢視">
+        {(["month", "week"] as View[]).map((candidate) => (
           <button
-            key={v}
-            onClick={() => setView(v)}
+            key={candidate}
+            type="button"
+            onClick={() => {
+              setSelectedDay(null);
+              setView(candidate);
+            }}
+            aria-pressed={view === candidate}
             className={cn(
-              "rounded px-2.5 py-1 text-xs",
-              view === v ? "bg-accent font-medium" : "text-muted-foreground",
+              "h-8 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              view === candidate ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {v === "month" ? "月" : "週"}
+            {candidate === "month" ? "月" : "週"}
           </button>
         ))}
       </div>
       <NLQuickAdd tz={tz} onDraft={openCreateFromDraft} />
-      <Button size="sm" onClick={() => openCreate()}>
+      <Button size="sm" onClick={() => openCreate()} className="shadow-sm">
         <Plus className="h-4 w-4" aria-hidden />
         建立
       </Button>
@@ -406,6 +442,9 @@ export function CalendarPage() {
 
   return (
     <AppShell topbar={topbar}>
+      <span className="sr-only" role="status" aria-live="polite">
+        目前顯示 {label}
+      </span>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         {isLoading ? (
           <div className="grid grid-cols-7 gap-px p-4">
@@ -414,30 +453,50 @@ export function CalendarPage() {
             ))}
           </div>
         ) : view === "month" ? (
-          <MonthGrid
-            anchor={anchor}
-            tz={tz}
-            occurrences={occurrences}
-            selectedDay={selectedDay}
-            onDayClick={(d) => {
-              // 先選取、再建立：誤觸只會選取，不會直接跳出表單
-              if (selectedDay && isSameDay(d, selectedDay)) openCreate(d);
-              else setSelectedDay(d);
-            }}
-            onDayCreate={openCreate}
-            onEventClick={openEdit}
-          />
+          <div className="h-full overflow-auto">
+            <MonthGrid
+              anchor={anchor}
+              tz={tz}
+              occurrences={occurrences}
+              selectedDay={selectedDay}
+              onNavigateMonth={navigateMonth}
+              onDayOpen={(d) => {
+                // 點日期 → 開啟當日完整行程（避免每格只看得到前 3 筆）；建立動作在彈窗內明確觸發
+                setSelectedDay(d);
+                setAgendaDay(d);
+              }}
+              onEventClick={openEdit}
+            />
+          </div>
         ) : (
           <WeekGrid anchor={anchor} tz={tz} occurrences={occurrences} onEventClick={openEdit} />
         )}
         <DragOverlay>
           {dragging && (
-            <div className="rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground shadow-lg">
+            <div className="rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground shadow-lg">
               {fmtTime(dragging.occurrence_start_utc, tz)} {dragging.title}
             </div>
           )}
         </DragOverlay>
       </DndContext>
+
+      {/* 當日完整行程：解決月視圖單日事件過多時看不到後續事件 */}
+      {agendaDay && (
+        <DayAgendaDialog
+          day={agendaDay}
+          tz={tz}
+          occurrences={agendaOccurrences}
+          onClose={() => setAgendaDay(null)}
+          onCreate={(d) => {
+            setAgendaDay(null);
+            openCreate(d);
+          }}
+          onEventClick={(occ) => {
+            setAgendaDay(null);
+            openEdit(occ);
+          }}
+        />
+      )}
 
       {/* 拖曳重複事件 → 選 scope 後套用 */}
       {pendingDrop && (
@@ -466,6 +525,8 @@ export function CalendarPage() {
           initial={dialog.initial}
           recurring={dialog.mode === "edit" ? dialog.recurring : undefined}
           source={dialog.mode === "edit" ? dialog.occ.source : undefined}
+          participants={dialog.mode === "edit" ? editingParticipants : undefined}
+          participantsLoading={dialog.mode === "edit" && participantsQ.isLoading}
           originHint={
             dialog.mode === "edit"
               ? {

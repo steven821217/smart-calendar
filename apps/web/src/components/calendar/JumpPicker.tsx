@@ -58,20 +58,20 @@ export function JumpPicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          "rounded-md px-2 py-1 text-sm font-medium tabular-nums transition-colors hover:bg-accent",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "inline-flex h-9 items-center rounded-md px-3 text-base font-semibold tabular-nums tracking-tight transition-colors hover:bg-accent",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         )}
         title="點此快速跳到任意月份 / 年份"
       >
         {curYear} 年 {curMonth + 1} 月
-        <span className="ml-1 text-[10px] text-muted-foreground">▾</span>
+        <span className="ml-1 text-xs text-muted-foreground">▾</span>
       </button>
 
       {open && (
         <div
           role="dialog"
           aria-label="快速跳轉日期"
-          className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg"
+          className="absolute left-0 top-full z-20 mt-2 w-64 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl"
         >
           {/* 年份切換列：‹ 年 › + 手動輸入 */}
           <div className="mb-2 flex items-center justify-between">

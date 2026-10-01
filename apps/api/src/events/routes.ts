@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { EventInput, ParseInput, parseEventFromText } from "@scal/shared";
+import { EventInput, ParseInput, ParticipantsInput, parseEventFromText } from "@scal/shared";
 import { enforce } from "../auth/pep.js";
-import { createEvent, getEvent, listOccurrences, updateEvent, deleteEvent, type Scope } from "./service.js";
+import { UnknownParticipantEmailError, createEvent, getEvent, listEventParticipants, listOccurrencesForMember, memberCanSeeEvent, replaceEventParticipants, updateEvent, deleteEvent, type Scope } from "./service.js";
 import { publishEvent, type WebhookEventType } from "../integrations/webhooks.js";
 import { verifyRsvpToken, OptionTokenError } from "../agents/option_token.js";
 import { applyRsvp, RsvpError, listPendingForMember } from "./rsvp_service.js";
+import { withWorkspace } from "../db/pool.js";
 import { z } from "zod";
 
 const RsvpInput = z.object({
@@ -91,13 +92,52 @@ export function registerEventRoutes(app: FastifyInstance) {
     const auth = req.auth!;
     if (!(await enforce(req, reply, "event.create", { type: "event", workspace: auth.workspace })))
       return;
+    // 寫入隔離：只能建在**自己擁有**的行事曆上。OPA 的 event.create 只看 workspace + 角色，
+    // 若不在此核對 calendar 擁有者，任何 member 都能把事件塞進 leader 的日曆。
+    // （agent 代排走委員會/MCP 另有路徑，仍以授權者本人的日曆為主體。）
+    const ownsCalendar = await withWorkspace(auth.workspace, async (c) => {
+      const r = await c.query(`SELECT 1 FROM calendars WHERE id = $1 AND owner_id = $2`, [
+        parsed.data.calendar_id,
+        auth.sub,
+      ]);
+      return r.rowCount === 1;
+    });
+    if (!ownsCalendar) {
+      // 不洩漏「該行事曆存在但不屬於你」→ 一律 404
+      return reply
+        .code(404)
+        .send({ type: "…/not-found", title: "Not Found", status: 404, detail: "行事曆不存在或不屬於你。" });
+    }
     try {
       const ev = await createEvent(auth.workspace, {
         ...parsed.data,
         created_by: auth.sub, // 由 membership 對映，此處簡化
       } as never);
+      // 與會者：schema 早就接受 participants，但先前服務層完全忽略 → 邀請被默默丟掉。
+      // 這裡落實寫入；建立者為 organizer(accepted)，其他人 pending（待對方回覆）。
+      const incoming = parsed.data.participants ?? [];
+      let participants;
+      try {
+        participants = await replaceEventParticipants(
+          auth.workspace,
+          ev.id,
+          auth.sub,
+          incoming.map((x) => x.member_id).filter((x): x is string => !!x),
+          incoming.map((x) => x.guest_email).filter((x): x is string => !!x),
+        );
+      } catch (e) {
+        if (e instanceof UnknownParticipantEmailError) {
+          // 事件已經寫進去了，但邀請失敗。留著會變成「會議建立了卻沒邀到人」的半套狀態，
+          // 使用者以為成功。因此刪掉事件並回 422，讓整個操作是全有或全無。
+          await deleteEvent(auth.workspace, ev.id, "all").catch(() => {});
+          return reply.code(422).send({
+            type: "…/validation", title: "unknown participant email", status: 422, detail: e.message,
+          });
+        }
+        throw e;
+      }
       emit(auth.workspace, "event.created", { id: ev.id, event: ev });
-      return reply.code(201).send(ev);
+      return reply.code(201).send({ ...ev, participants });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       // 衝突（EXCLUDE / unique）→ 409；其餘 → 422
@@ -114,19 +154,79 @@ export function registerEventRoutes(app: FastifyInstance) {
     if (!(await enforce(req, reply, "event.read", {
       type: "event", workspace: auth.workspace, owner_id: ev.created_by, visibility: ev.visibility,
     }))) return;
-    return ev;
+    // 個人隔離（與列表同規則）：OPA 對 visibility='busy'（預設值）是放行的，
+    // 若不再核對本人，任何成員拿到 event id 就能讀到別人的完整內容。
+    if (!(await memberCanSeeEvent(auth.workspace, auth.sub, req.params.id))) {
+      return reply.code(404).send({ type: "…/not-found", title: "Not Found", status: 404 });
+    }
+    // 與會者名單一併回傳，站內才看得到「這場會有誰參加」
+    const participants = await listEventParticipants(auth.workspace, req.params.id);
+    return { ...ev, participants };
   });
 
+  // 取代與會者名單（邀請／移除）。
+  // 只有事件建立者能改——否則同 workspace 的任何人都能把別人塞進別人的會議。
+  app.put<{ Params: { id: string }; Body: { member_ids?: string[]; guest_emails?: string[] } }>(
+    "/v1/events/:id/participants",
+    async (req, reply) => {
+      const auth = req.auth!;
+      const ev = await getEvent(auth.workspace, req.params.id);
+      if (!ev) return reply.code(404).send({ type: "…/not-found", title: "Not Found", status: 404 });
+      if (!(await enforce(req, reply, "event.update", {
+        type: "event", workspace: auth.workspace, owner_id: ev.created_by, visibility: ev.visibility,
+      }))) return;
+      if (ev.created_by !== auth.sub) {
+        // 不洩漏事件存在與否的差異
+        return reply.code(404).send({
+          type: "…/not-found", title: "Not Found", status: 404,
+          detail: "只有發起人能調整與會者。",
+        });
+      }
+      const parsed = ParticipantsInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return reply.code(422).send({
+          type: "…/validation", title: "Unprocessable", status: 422,
+          detail: parsed.error.issues.map((i) => i.message).join("；"),
+        });
+      }
+      let participants;
+      try {
+        participants = await replaceEventParticipants(
+          auth.workspace,
+          req.params.id,
+          auth.sub,
+          parsed.data.member_ids,
+          parsed.data.guest_emails,
+        );
+      } catch (e) {
+        if (e instanceof UnknownParticipantEmailError) {
+          return reply.code(422).send({
+            type: "…/validation", title: "unknown participant email", status: 422, detail: e.message,
+          });
+        }
+        throw e;
+      }
+      emit(auth.workspace, "event.updated", { id: req.params.id, event: { ...ev, participants } });
+      return { participants };
+    },
+  );
+
   // 列表 / 展開 occurrences
+  //
+  // 個人隔離：只回「本人擁有的日曆上的事件」＋「本人被列為參與者的事件」
+  //（listOccurrencesForMember）。同 workspace 的其他人私會查不到——加入工作區
+  // 不等於看得到 leader 的整本日曆。leader 幫團隊排的會、agent 代排的會，因為
+  // member 是 participant（pending 或 accepted 皆然）所以看得到，RSVP 流程才成立。
+  // 與站內/外部 agent 的查詢走同一條函式，避免「問 agent 隔離、看月曆卻全都露」。
   app.get<{ Querystring: { from?: string; to?: string; calendar_id?: string } }>(
     "/v1/events",
     async (req, reply) => {
       const auth = req.auth!;
-      const { from, to, calendar_id } = req.query;
+      const { from, to } = req.query;
       if (!(await enforce(req, reply, "event.read", { type: "event", workspace: auth.workspace })))
         return;
       if (from && to) {
-        const occ = await listOccurrences(auth.workspace, new Date(from), new Date(to), calendar_id);
+        const occ = await listOccurrencesForMember(auth.workspace, auth.sub, new Date(from), new Date(to));
         return { occurrences: occ, next_cursor: null };
       }
       if (from || to) {

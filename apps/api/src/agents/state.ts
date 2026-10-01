@@ -92,6 +92,8 @@ export const CommitteeAnnotation = Annotation.Root({
   delegated_attendees: Annotation<string[]>({ reducer: lastWins, default: () => [] }),
   resources: Annotation<ResourceNeed[]>({ reducer: lastWins, default: () => [] }),
   timeframe: Annotation<Timeframe | null>({ reducer: lastWins, default: () => null }),
+  /** coordinator 抽出的行程標題（活動本身，不含時間與語氣詞）。 */
+  event_title: Annotation<string | undefined>({ reducer: lastWins, default: () => undefined }),
 
   candidate: Annotation<NegotiationOption | undefined>({ reducer: lastWins, default: () => undefined }),
   options: Annotation<NegotiationOption[]>({ reducer: lastWins, default: () => [] }),

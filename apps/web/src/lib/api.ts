@@ -5,6 +5,9 @@
 
 const BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:3000";
 
+/** 任何已認證請求收到 401 時通知應用程式清除過期登入狀態。 */
+export const AUTH_EXPIRED_EVENT = "scal:auth-expired";
+
 /** API 基底位址（SSE EventSource URL 用；容器化時為 "" → 同源相對路徑打 gateway）。 */
 export function apiBase() {
   return BASE;
@@ -18,6 +21,15 @@ export interface Me {
   timezone: string;
   workspace: { id: string; slug: string; name: string };
 }
+
+/** 登入結果：一個人可能屬於多個 workspace，此時後端不發 token，先要求選擇。 */
+export interface WorkspaceChoice {
+  id: string;
+  slug: string;
+  name: string;
+  role: string;
+}
+export type LoginOutcome = LoginResult | { needs_workspace_selection: true; workspaces: WorkspaceChoice[] };
 
 export interface LoginResult {
   access_token: string;
@@ -52,6 +64,8 @@ export interface EventRecord {
   location: string | null;
   source: string;
   created_by: string;
+  /** 與會者名單（GET /v1/events/:id 與建立回應會帶）。 */
+  participants?: EventParticipant[];
 }
 
 export interface AvailabilitySlot {
@@ -123,8 +137,9 @@ async function request<T>(
   path: string,
   opts: { body?: unknown; idempotencyKey?: string; headers?: Record<string, string> } = {},
 ): Promise<T> {
+  const tokenForRequest = _token;
   const headers: Record<string, string> = { "content-type": "application/json" };
-  if (_token) headers.authorization = `Bearer ${_token}`;
+  if (tokenForRequest) headers.authorization = `Bearer ${tokenForRequest}`;
   if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
   if (opts.headers) Object.assign(headers, opts.headers);
 
@@ -133,6 +148,14 @@ async function request<T>(
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
+
+  // 僅清除送出此請求時所用、且目前仍有效的同一張 token。
+  // 這可避免舊請求較晚回 401 時誤清掉使用者剛重新登入取得的新 token。
+  if (res.status === 401 && tokenForRequest && _token === tokenForRequest) {
+    setToken(null);
+    localStorage.removeItem("scal.token");
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
 
   if (res.status === 204) return undefined as T;
 
@@ -152,7 +175,48 @@ async function request<T>(
 }
 
 export const api = {
-  login: (email: string) => request<LoginResult>("POST", "/v1/auth/login", { body: { email } }),
+  login: (email: string, password: string, workspaceId?: string) =>
+    request<LoginOutcome>("POST", "/v1/auth/login", {
+      body: workspaceId ? { email, password, workspace_id: workspaceId } : { email, password },
+    }),
+  /** 我所屬的所有 workspace（切換器用）。 */
+  listMyWorkspaces: () =>
+    request<{ current_workspace_id: string; workspaces: WorkspaceChoice[] }>(
+      "GET",
+      "/v1/auth/workspaces",
+    ),
+  /** 切換到同一個人的另一個 workspace（免重新輸入密碼，token 由伺服器重簽）。 */
+  switchWorkspace: (workspaceId: string) =>
+    request<LoginResult>("POST", "/v1/auth/switch-workspace", { body: { workspace_id: workspaceId } }),
+  /** 在同一個帳號下再建立一個 workspace，建立者為 admin；回應等同已切換過去。 */
+  createWorkspace: (name: string, timezone?: string) =>
+    request<LoginResult>("POST", "/v1/auth/workspaces", { body: { name, timezone } }),
+  /** OAuth 2.1 同意（導向流程）：核准後取得一次性授權碼，由瀏覽器帶回 client。 */
+  oauthConsent: (body: {
+    agent_id: string;
+    scope: string[];
+    code_challenge: string;
+    redirect_uri: string;
+    client_id: string;
+    resource?: string;
+  }) =>
+    request<{ authorization_code: string; expires_in: number }>("POST", "/v1/oauth/consent", { body }),
+
+  /** 把「已註冊」的人以 email 加入本工作區（admin）。 */
+  addWorkspaceMember: (email: string, role: "admin" | "scheduler" | "member") =>
+    request<{ membership_id: string; user_id: string; display_name: string; role: string }>(
+      "POST",
+      "/v1/members",
+      { body: { email, role, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
+    ),
+  /** 自助註冊：建立新 workspace（註冊者為 admin），成功即回 token（自動登入）。 */
+  register: (body: {
+    email: string;
+    password: string;
+    display_name: string;
+    workspace_name: string;
+    timezone?: string;
+  }) => request<LoginResult>("POST", "/v1/auth/register", { body }),
   me: () => request<Me>("GET", "/v1/auth/me"),
 
   listCalendars: () =>
@@ -182,9 +246,19 @@ export const api = {
       rrule?: string | null;
       visibility?: string;
       location?: string | null;
+      /** 與會者：被邀請的人為 pending，需對方回覆才算排入他的行程。 */
+      participants?: Array<{ member_id?: string; guest_email?: string }>;
     },
     idempotencyKey?: string,
   ) => request<EventRecord>("POST", "/v1/events", { body: input, idempotencyKey }),
+
+  /** 取代某事件的與會者名單（僅發起人可改）。 */
+  setEventParticipants: (eventId: string, memberIds: string[], guestEmails: string[] = []) =>
+    request<{ participants: EventParticipant[] }>(
+      "PUT",
+      `/v1/events/${encodeURIComponent(eventId)}/participants`,
+      { body: { member_ids: memberIds, guest_emails: guestEmails } },
+    ),
 
   updateEvent: (
     id: string,
@@ -247,20 +321,55 @@ export const api = {
   removeGroupMember: (id: string, userId: string) =>
     request<void>("DELETE", `/v1/groups/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`),
   listWorkspaceMembers: () => request<{ members: WorkspaceMember[] }>("GET", "/v1/members"),
+  /** 依 email 找本工作區成員（邀請與會者時用）。查不到回 404。 */
+  findMemberByEmail: (email: string) =>
+    request<{ member: WorkspaceMember }>(
+      "GET",
+      `/v1/members/by-email?email=${encodeURIComponent(email)}`,
+    ),
 
   // --- 站內對話 agent（B）：能查詢也能排會 ---
   agentChat: (text: string, viewerTz: string) =>
     request<{
-      kind: "answer" | "scheduled" | "needs_decision" | "error";
+      kind: "answer" | "scheduled" | "needs_decision" | "needs_confirmation" | "not_permitted" | "error";
       message: string;
       intent?: string;
       via?: string;
-      data?: { option_token?: string; [k: string]: unknown };
+      data?: { option_token?: string; action_token?: string; [k: string]: unknown };
     }>("POST", "/v1/agent/chat", { body: { text }, headers: { "x-viewer-tz": viewerTz } }),
   agentConfirm: (optionToken: string) =>
     request<{ kind: string; message: string; data?: unknown }>("POST", "/v1/agent/confirm", {
       body: { option_token: optionToken },
     }),
+  /**
+   * 破壞性動作（改期/取消/回覆邀請）的第二步確認。後端在第一步只回「確認預覽」＋簽好的
+   * action_token（綁 workspace、短 TTL），必須帶此 token 才會真的落實。
+   */
+  agentConfirmAction: (actionToken: string, viewerTz: string) =>
+    request<{ kind: string; message: string; intent?: string; data?: unknown }>(
+      "POST",
+      "/v1/agent/confirm-action",
+      { body: { action_token: actionToken }, headers: { "x-viewer-tz": viewerTz } },
+    ),
+
+  /**
+   * 綁定外部 agent 到「我」的帳號：回一組 scoped、有到期日、可撤銷的 bearer token，
+   * 貼進 MCP client 設定即可。權限上限＝呼叫者本人（roles 沿用、scope 為勾選子集）。
+   * token 只在此回應出現一次，之後無法再取得。
+   */
+  createAgentToken: (agentId: string, scope: string[], ttlDays: number) =>
+    request<{
+      access_token: string;
+      token_type: string;
+      expires_in: number;
+      expires_at: string;
+      agent_id: string;
+      scope: string[];
+      on_behalf_of: string;
+    }>("POST", "/v1/agents/tokens", { body: { agent_id: agentId, scope, ttl_days: ttlDays } }),
+  /** 解除撤銷（admin）：讓被撤銷的 agent 名稱可再次綁定。 */
+  unrevokeAgent: (id: string) =>
+    request<void>("POST", `/v1/agents/${encodeURIComponent(id)}/authorization`),
 
   // --- RSVP（feature-team-groups）：以 rsvp_token 回覆 pending 邀請（免登入 JWT）---
   listPendingRsvps: () =>
@@ -296,6 +405,17 @@ export interface GroupMember {
   display_name: string | null;
   role: "leader" | "member";
 }
+/** 事件與會者（含回覆狀態）。 */
+export interface EventParticipant {
+  member_id: string | null;
+  guest_email: string | null;
+  display_name: string | null;
+  email: string | null;
+  /** pending=已邀請待回覆、accepted=已接受、declined=已婉拒 */
+  rsvp_status: string;
+  is_organizer: boolean;
+}
+
 export interface WorkspaceMember {
   membership_id: string;
   user_id: string;

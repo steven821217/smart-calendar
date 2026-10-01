@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { makeChatModel, type ChatModel, type ChatMessage } from "../llm.js";
-import { runInAppAgent, confirmSchedule } from "./service.js";
+import { runInAppAgent, confirmSchedule, confirmAction } from "./service.js";
 
 /**
  * 站內對話 agent 路由（B 方案）。
@@ -12,16 +12,17 @@ import { runInAppAgent, confirmSchedule } from "./service.js";
 
 /**
  * 站內 stub model（MCP_STUB_MODEL=1，測試/離線截圖用）：
- * 依 schema 形狀回不同假資料——意圖分類多半由規則判掉，此 stub 主要服務委員會節點。
+ * agent-first 下，路由第一層本應由 agent 決定；stub 無語意能力，故對「router/意圖分類
+ * schema」丟例外，讓 routeMessage 走 rulesFallback（規則分類），只服務委員會節點 schema。
  */
 function makeInAppStubModel(): ChatModel {
   const stubMember = process.env.MCP_STUB_MEMBER_ID;
   return {
     async invokeStructured<T>(schema: z.ZodType<T>, _messages: ChatMessage[]): Promise<T> {
-      // 探測 schema：意圖分類 schema 有 `intent` 欄位
+      // 探測 schema：router/意圖分類 schema 有 `intent` 欄位 → stub 不路由，交給規則兜底
       const shape = (schema as unknown as { shape?: Record<string, unknown> }).shape;
       if (shape && "intent" in shape) {
-        return { intent: "list_events" } as T; // 規則沒判掉時的保守預設
+        throw new Error("stub: no LLM routing, defer to rules");
       }
       // 委員會 coordinator schema
       return {
@@ -60,5 +61,17 @@ export function registerInAppAgentRoutes(app: FastifyInstance) {
       return reply.code(422).send({ type: "…/validation", title: "Unprocessable", status: 422, detail: parsed.error.message });
     }
     return confirmSchedule(auth, parsed.data.option_token);
+  });
+
+  // 第三波：破壞性動作（reschedule/cancel）第二步——帶 action_token 確認執行。
+  const ConfirmActionInput = z.object({ action_token: z.string().min(1) });
+  app.post("/v1/agent/confirm-action", async (req, reply) => {
+    const auth = req.auth!;
+    const parsed = ConfirmActionInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(422).send({ type: "…/validation", title: "Unprocessable", status: 422, detail: parsed.error.message });
+    }
+    const tz = (req.headers["x-viewer-tz"] as string) || "Asia/Taipei";
+    return confirmAction(auth, parsed.data.action_token, tz);
   });
 }

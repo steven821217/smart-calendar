@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
-import { api, type AvailabilitySlot } from "@/lib/api";
+import { api, ApiError, type AvailabilitySlot } from "@/lib/api";
 import { fmtTime } from "@/lib/time";
 import { Skeleton } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
@@ -26,11 +26,22 @@ export function AvailabilityPanel({
   onPick: (slot: AvailabilitySlot) => void;
 }) {
   const enabled = durationMinutes > 0 && !!dayUtcFrom && !!dayUtcTo;
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["availability", workspaceId, dayUtcFrom, dayUtcTo, durationMinutes],
     queryFn: () => api.availability(dayUtcFrom, dayUtcTo, durationMinutes),
     enabled,
+    retry: (failureCount, cause) =>
+      !(cause instanceof ApiError && [401, 403, 422].includes(cause.status)) && failureCount < 1,
   });
+
+  const errorMessage =
+    error instanceof ApiError
+      ? error.status === 401
+        ? "登入已過期，正在返回登入頁…"
+        : error.status === 403
+          ? "你的帳號沒有查看空檔的權限。"
+          : (error.detail ?? "排程服務目前無法取得建議時段。")
+      : "目前無法連線到排程服務，請稍後再試。";
 
   return (
     <div className="space-y-2 rounded-md border border-border p-3">
@@ -48,8 +59,8 @@ export function AvailabilityPanel({
             <Skeleton key={i} className="h-8 w-20" />
           ))}
         </div>
-      ) : isError ? (
-        <p className="text-xs text-destructive">無法取得建議時段。</p>
+      ) : error ? (
+        <p className="text-xs text-destructive" role="alert">{errorMessage}</p>
       ) : !data?.slots.length ? (
         <p className="text-xs text-muted-foreground">當日無可用空檔。</p>
       ) : (
