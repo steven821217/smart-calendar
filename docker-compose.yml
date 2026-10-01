@@ -22,12 +22,14 @@ x-app-env: &app-env
   REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-1}
   REGISTER_MAX_PER_IP: ${REGISTER_MAX_PER_IP:-5}
   REGISTER_WINDOW_SEC: ${REGISTER_WINDOW_SEC:-3600}
-  # 委員會 LLM（無金鑰時委員會走 fail-closed；設 MCP_STUB_MODEL=1 可本機 stub 驗證）
-  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-  LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
-  # 容器內連 host 上的 ollama：預設 host.docker.internal（需搭配各服務的 extra_hosts）。
-  # 走雲端 OpenAI 則把 .env 的 LLM_BASE_URL 留空即可。
-  LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+  # 委員會 LLM：預設走 compose 內建的 ollama service（見下方 ollama / ollama-pull）。
+  # OPENAI_API_KEY 需為「非空」否則委員會 fail-closed 不呼叫；本機 ollama 填佔位值 local 即可。
+  # 要改走雲端 OpenAI：於 .env 設真實 OPENAI_API_KEY 並把 LLM_BASE_URL 留空。
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-local}
+  LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
+  # 預設指向 compose 內 ollama service（容器間用 service 名互連，不依賴 host）。
+  # 若要連 host 上既有的 ollama，於 .env 設 LLM_BASE_URL=http://host.docker.internal:11434/v1。
+  LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
   # Query-conditioned ICL（訓練-free 提升小模型分類）：示例數 0=關閉；embedding 模型須在同一端點。
   INAPP_ICL_K: ${INAPP_ICL_K:-4}
   INAPP_SPECULATE: "${INAPP_SPECULATE:-1}"
@@ -44,6 +46,54 @@ x-app-env: &app-env
   OAUTH_REDIRECT_ALLOWLIST: ${OAUTH_REDIRECT_ALLOWLIST:-}
 
 services:
+  # 本機 LLM：ollama（GPU）。api/mcp/worker 的委員會與站內 agent 預設連此。
+  # 走 nvidia runtime（比 --gpus 的 DeviceRequests 穩：後者在 daemon-reload 後會掉 cgroup 規則
+  # 導致靜默 fallback 到 CPU）。model 存於 named volume，拉過一次即快取、重啟免再下載。
+  ollama:
+    image: ollama/ollama
+    runtime: nvidia
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      # 多人並發時讓多請求並行（預設序列會排隊）；視 VRAM 調整。
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-3}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ollama:/root/.ollama
+    expose: ["11434"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # run-once：首次啟動自動下載所需 model（委員會/agent 的 qwen3:14b 與 ICL 的 embeddinggemma）。
+  # model 已在 volume 內則 pull 立即返回（冪等）。拉完即退出。
+  ollama-pull:
+    image: ollama/ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "[ollama-pull] pulling ${LLM_MODEL:-qwen3:14b} ..."
+        ollama pull "${LLM_MODEL:-qwen3:14b}"
+        echo "[ollama-pull] pulling ${INAPP_EMBED_MODEL:-embeddinggemma:latest} ..."
+        ollama pull "${INAPP_EMBED_MODEL:-embeddinggemma:latest}"
+        echo "[ollama-pull] done."
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama: { condition: service_healthy }
+    restart: "no"
+
   db:
     image: postgres:16
     environment:
@@ -109,6 +159,7 @@ services:
       redis: { condition: service_healthy }
       opa: { condition: service_started }
       migrate: { condition: service_completed_successfully }
+      ollama-pull: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -123,6 +174,7 @@ services:
       redis: { condition: service_healthy }
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+      ollama-pull: { condition: service_completed_successfully }
     stop_grace_period: 30s
 
   mcp:
@@ -144,6 +196,7 @@ services:
       redis: { condition: service_healthy }
       opa: { condition: service_started }
       migrate: { condition: service_completed_successfully }
+      ollama-pull: { condition: service_completed_successfully }
 
   web:
     build:
@@ -179,3 +232,4 @@ volumes:
   pgdata:
   redisdata:
   gatewaycerts:
+  ollama:

@@ -21,12 +21,19 @@
 
 clone 後**不需任何設定**，直接：
 ```bash
-docker compose up                   # db/redis/opa/migrate/api/worker/mcp/web/mailhog/gateway
+docker compose up                   # ollama/db/redis/opa/migrate/api/worker/mcp/web/mailhog/gateway
 ```
 - compose 內所有環境變數都有內建預設值（`:-default`），**無 `.env` 也能完整啟動**（本機/demo 用，採 `change-me` 預設密碼）。
-- 服務以 `build:` 定義，第一次 `up` 會**自動建置映像**；之後若改了程式碼要強制重建才需 `docker compose up --build`。
+- **AI/agent 開箱即用**：compose 內建 `ollama`（GPU）service，首次啟動由 `ollama-pull` run-once
+  自動下載 `qwen3:14b`（委員會/站內 agent）與 `embeddinggemma`（ICL embedding），api/mcp/worker 預設連
+  `http://ollama:11434`。model 存於 named volume，**只下載一次**，之後重啟秒起。
+- 服務以 `build:` 定義，第一次 `up` 會**自動建置映像**；之後改了程式碼要強制重建才需 `docker compose up --build`。
 - 開啟瀏覽器進 `https://127.0.0.1:9443`（gateway 自簽 TLS，首次會跳憑證警告，手動信任即可）。
 - 示範帳號（seed 自動建立）：`a@example.com` / `b@example.com`，密碼為 `SEED_DEMO_PASSWORD`（預設 `demo-password-1234`）。
+
+> **前置需求（GPU）**：內建 ollama 走 `runtime: nvidia`，host 需裝好 NVIDIA 驅動 + nvidia-container-toolkit
+> （`docker info` 的 Runtimes 要有 `nvidia`）。首次會下載約 **10GB** model，請預留磁碟與時間。
+> 無 GPU 或不想跑本機 model 的替代方案見下方「委員會 LLM」。
 
 > ⚠️ 正式部署請先 `cp .env.example .env`，至少改掉 `JWT_SECRET`、`POSTGRES_PASSWORD`、`DB_PASSWORD`、`SEED_DEMO_PASSWORD`，切勿沿用預設值。
 
@@ -36,34 +43,24 @@ cp .env.example .env                # 編輯後再 up；compose 會自動讀取�
 docker compose up --build
 ```
 - 對外**只開 gateway**（`127.0.0.1:9080`→轉址、`127.0.0.1:9443` HTTPS 主入口）；
-  api/mcp/web/db/redis/opa 皆在 compose 內網，不直接對公網（MCP-10）。
+  ollama/api/mcp/web/db/redis/opa 皆在 compose 內網，不直接對公網（MCP-10）。
 - gateway 首次啟動自簽 TLS 憑證；反代路由：`/mcp`→mcp、`/v1`·`/health`→api、`/`→web，
   並對 `/mcp`·`/v1` 做 per-IP rate-limit。
 - `migrate` 為 run-once（建表+RLS+app_user+seed 示範 ws-a/ws-b）後自動退出。
-- 委員會 LLM（三選一）：
-  - **雲端 OpenAI**：`.env` 設 `OPENAI_API_KEY`（真實金鑰）、`LLM_BASE_URL` 留空。
-  - **本機 model（ollama/LM Studio，OpenAI 相容）**：`.env` 設
-    `LLM_BASE_URL=http://host.docker.internal:11434/v1`（全容器化；container 靠此連 host 上的 ollama，
-    compose 已為 api/mcp 加 `extra_hosts: host.docker.internal:host-gateway`）、
-    `OPENAI_API_KEY=local`（非空佔位值，否則 fail-closed 不呼叫）、
-    `LLM_MODEL=qwen3:14b`（需支援 function-calling / JSON structured output）。
-    先確保 host 的 ollama 有跑（`ollama serve` 或容器 `docker start ollama`）。
-    - **多人並發（PoC 多位使用者同時用外部/站內 agent）**：ollama 預設序列處理，同時多個請求會排隊。
-      站內對話 agent 現為 **agent-first**（每句都先問 14B）；GPU 上單次路由約 1.5 秒，
-      潤飾（`INAPP_POLISH=1`）再加約 1.5 秒。**務必讓 ollama 跑在 GPU**：容器需以
-      `--runtime=nvidia --gpus all` 啟動（僅 `--gpus`＋runc 的 DeviceRequests 在
-      `systemctl daemon-reload` 或其他容器操作後會掉失裝置 cgroup 規則，ollama 靜默 fallback
-      到 CPU、單次暴增到 10-16 秒）。建議固定化：
-      `docker run -d --name ollama --runtime=nvidia --gpus all --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 -e OLLAMA_HOST=0.0.0.0:11434 ollama/ollama`。
-      驗證：`docker exec ollama ollama ps` 應顯示 `100% GPU`（非 `100% CPU`）、
-      `nvidia-smi` 應見 ollama 進程佔顯存。若預期多人同時觸發 14B，
-      啟動 ollama 前設 `OLLAMA_NUM_PARALLEL=3`（或更高）與足夠 VRAM 讓多請求並行，避免排隊等待。
+- 委員會 LLM（預設內建 ollama，可改）：
+  - **預設：compose 內建 ollama（GPU）**。無需任何設定；`OLLAMA_NUM_PARALLEL` 預設 3 讓多人並發不排隊，
+    VRAM 夠的話可在 `.env` 調高。驗證跑在 GPU：`docker compose exec ollama ollama ps` 應顯示 `100% GPU`。
+    站內對話 agent 為 **agent-first**（每句都先問 14B）：GPU 上單次路由約 1.5 秒，潤飾（`INAPP_POLISH=1`）再加約 1.5 秒。
+  - **連 host 上既有的 ollama**（不想在 compose 內再跑一份）：`.env` 設
+    `LLM_BASE_URL=http://host.docker.internal:11434/v1`（compose 已為 api/mcp 加
+    `extra_hosts: host.docker.internal:host-gateway`），並確保 host 的 ollama 已跑且含所需 model。
+  - **雲端 OpenAI**：`.env` 設 `OPENAI_API_KEY`（真實金鑰）、`LLM_BASE_URL` 留空、`LLM_MODEL=gpt-4o-mini`。
   - **純流程驗證（不打 model）**：`MCP_STUB_MODEL=1 docker compose up`，委員會走 stub 抽取。
 - 收信 UI：MailHog `http://127.0.0.1:8025`。
 ```bash
-docker compose logs -f api worker mcp gateway
-docker compose down        # 保留 volume（pgdata/redisdata/gatewaycerts）
-docker compose down -v     # ⚠️ 連資料一起刪
+docker compose logs -f api worker mcp gateway ollama
+docker compose down        # 保留 volume（pgdata/redisdata/gatewaycerts/ollama）
+docker compose down -v     # ⚠️ 連資料一起刪（含已下載的 ollama model）
 ```
 
 ### B. 本機開發（不進容器跑 api/web，需要 host 可連 DB）
