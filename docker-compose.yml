@@ -56,6 +56,12 @@ services:
       OLLAMA_HOST: 0.0.0.0:11434
       # 多人並發時讓多請求並行（預設序列會排隊）；視 VRAM 調整。
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-3}
+      # 模型常駐不卸載：避免卸載後重新載入時觸發 CUDA error 800（driver 取不到 device context），
+      # 那會讓 ollama 靜默 fallback 到 CPU（14B 單題從 ~5s 暴增到數十秒）。-1=永不卸載。
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
+      # Flash Attention + q8 KV cache：省 VRAM、加速長 context（本機 LLM 推論最佳化）。
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+      OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:

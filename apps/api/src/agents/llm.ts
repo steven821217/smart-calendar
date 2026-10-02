@@ -47,9 +47,11 @@ export function makeChatModel(): ChatModel {
   const mode = (process.env.INAPP_LLM_MODE ?? "json").toLowerCase(); // 基準：json（實測較 tools 準且快）
   const thinking = process.env.INAPP_LLM_THINK === "1"; // 預設關 thinking
 
-  // ollama 關 thinking：OpenAI 相容端點透過 chat_template_kwargs.enable_thinking=false。
-  // 對雲端 OpenAI 無此參數但無害（會被忽略）。
+  // ollama 關 thinking：優先用 qwen3 的 /no_think 軟開關（實測對舊版 qwen3 模板可靠：
+  // 單次 5~15s 降到 ~0.3s）。chat_template_kwargs.enable_thinking 對部分 qwen3 模板版本
+  // 無效（模型仍輸出 <think> 全文），故改以 prompt 前綴為主、kwargs 為輔（雙保險）。
   const modelKwargs = thinking ? undefined : { chat_template_kwargs: { enable_thinking: false } };
+  const noThinkPrefix = thinking ? "" : "/no_think\n";
 
   return {
     async invokeStructured<T>(schema: z.ZodType<T>, messages: ChatMessage[]): Promise<T> {
@@ -72,6 +74,17 @@ export function makeChatModel(): ChatModel {
       const lcMessages = messages.map((m) =>
         m.role === "system" ? new SystemMessage(m.content) : new HumanMessage(m.content),
       );
+      // 注入 /no_think（qwen3 軟開關關閉 thinking，實測單次 15s→<1s）。
+      // 注入「最後一則 human message」而非 system：human 內容會被 withStructuredOutput
+      // 原樣送出，不像 system 可能被 JSON-mode 機制改寫/覆蓋（實測 system 注入時有路徑漏接）。
+      if (noThinkPrefix) {
+        for (let i = lcMessages.length - 1; i >= 0; i--) {
+          if (lcMessages[i]._getType() === "human") {
+            lcMessages[i] = new HumanMessage(noThinkPrefix + String(lcMessages[i].content));
+            break;
+          }
+        }
+      }
 
       if (mode === "tools") {
         // 基準：原生 function-calling。把 schema 綁成一個 tool 並用 tool_choice 強制呼叫，
