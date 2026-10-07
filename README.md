@@ -114,9 +114,10 @@ pnpm --filter @scal/web dev          # Vite on 127.0.0.1:5173
 - **RSVP 頁**：Member 一鍵 accept/decline 後顯示事件時間/地點（依事件時區）。
 - **最近事件面板**：側欄列出前後 7 天事件（依觀看者時區、agent 事件標 ✨、per-member 快取），不必翻月曆即知近期有什麼事。
 - **登出／切換帳號**：左下角帳號區可登出回登入頁，改用其他帳號（如 member）登入（workspace 仍不可於 UI 切換，ISO-3）。
-- **團隊群組**：建立/成員管理，刪除有二次確認；提示「設好團隊後可請 AI 助理幫團隊排會」。
+- **團隊群組**：建立/成員管理，刪除有二次確認；提示「設好團隊後可請 AI 助理幫團隊排會」。工作區成員管理（管理員可邀請現有成員加入、變更權限與軟刪除成員）。
 - Agent 管理頁：外部 agent 授權/MCP 活動檢視、即時撤銷（admin）。
 - **日曆助理對話抽屜（🤖）**：頂欄開啟側邊對話，可問行程（今天/明天/這週有什麼、幾個會、有沒有空、待回覆）也可請它排會；查詢走站內 agent（規則+14B harness），排會轉委員會。附建議問題、答案帶「我怎麼理解的」時間窗標籤。
+- **前端驗證與資安**：導入 React Hook Form (RHF) 與 Zod 嚴謹驗證表單輸入，且支援 Refresh Token 機制。
 
 ## MCP 對外接入（階段 8：stdio / Streamable HTTP + OAuth 2.1 consent）
 
@@ -165,10 +166,10 @@ agent ─→ MCP HTTP（Authorization: Bearer <token>）─→ tools（scope∩r
 
 ## 尚未實作
 - 階段 9 進階：空檔卡片/NLQuickAdd（9.5）、跨時區雙時區顯示（9.6）、
-  Inter 自託管等設計系統收尾（9.8）、RHF+zod 表單。
+  Inter 自託管等設計系統收尾（9.8）。
 - 階段 10 通知 Webhook / 外部日曆同步（Email→MailHog 已於容器化納入）
 - 階段 11.2 驗收腳本（requirements §6）
-- 後端延後項：refresh token（3.2）、改密碼／忘記密碼流程、邀請他人加入**既有** workspace（目前註冊只會建立新 workspace）、NLP parser（5.4）、event_reminders API（7.6）
+- 後端延後項：改密碼／忘記密碼流程、NLP parser（5.4）、event_reminders API（7.6）
 - 外部 agent 授權：兩條路都可用——
   1. **貼 token**（相容性最高）：使用者在「我的 AI agent」勾 scope 產生 scoped token，貼進 MCP 設定。
   2. **OAuth 自動發現**（支援 OAuth 的 client 一鍵連線）：`/mcp` 未授權時回 401 +

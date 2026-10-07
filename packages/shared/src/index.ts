@@ -217,6 +217,16 @@ export const CreateWorkspaceInput = z.object({
 export type CreateWorkspaceInputT = z.infer<typeof CreateWorkspaceInput>;
 
 /**
+ * InviteMemberInput：邀請新成員加入既有的 workspace。
+ */
+export const InviteMemberInput = z.object({
+  email: z.string().email().max(320),
+  role: z.enum(["admin", "scheduler", "member", "guest"]).default("member"),
+  display_name: nonBlankText(120, "顯示名稱").optional(),
+});
+export type InviteMemberInputT = z.infer<typeof InviteMemberInput>;
+
+/**
  * AgentTokenInput：使用者在站內「綁定一個外部 agent 到自己的帳號」。
  *
  * 為何需要這條路徑（而非只有 PKCE consent）：實務上的 MCP client（Claude Code /

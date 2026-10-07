@@ -6,12 +6,16 @@ export interface AuthContext {
   roles: string[];
   scope?: string[]; // agent M2M token 用
   user_sub?: string; // M2M token：授權該 agent 的使用者 membership id（on-behalf-of）
+  type?: string;
+  jti?: string;
+  exp?: number;
 }
 
 const SECRET = process.env.JWT_SECRET ?? "change-me-32bytes-minimum-secret-value";
 
 /** 一般使用者 access token 有效期：1 小時。OAuth/agent/action token 另有各自 TTL。 */
 export const USER_ACCESS_TOKEN_TTL_SEC = 60 * 60;
+export const USER_REFRESH_TOKEN_TTL_SEC = 7 * 24 * 60 * 60; // 7 天
 
 function b64url(input: Buffer | string): string {
   return Buffer.from(input)
@@ -28,7 +32,7 @@ export function signJwt(
 ): string {
   const header = { alg: "HS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
-  const body = { ...payload, iat: now, exp: now + expiresInSec };
+  const body = { jti: crypto.randomUUID(), ...payload, iat: now, exp: now + expiresInSec };
   const h = b64url(JSON.stringify(header));
   const p = b64url(JSON.stringify(body));
   const sig = b64url(crypto.createHmac("sha256", SECRET).update(`${h}.${p}`).digest());
@@ -64,5 +68,8 @@ export function verifyJwt(authHeader?: string): AuthContext | null {
     roles: Array.isArray(claims.roles) ? (claims.roles as string[]) : [],
     scope: Array.isArray(claims.scope) ? (claims.scope as string[]) : undefined,
     user_sub: claims.user_sub ? String(claims.user_sub) : undefined,
+    type: claims.type ? String(claims.type) : "access",
+    jti: claims.jti ? String(claims.jti) : undefined,
+    exp: typeof claims.exp === "number" ? claims.exp : undefined,
   };
 }

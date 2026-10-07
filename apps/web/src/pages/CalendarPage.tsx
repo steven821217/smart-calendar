@@ -299,6 +299,7 @@ export function CalendarPage() {
         rrule: null,
         visibility: "busy",
         location: null,
+        attendees: [],
       },
     });
   };
@@ -315,6 +316,7 @@ export function CalendarPage() {
         rrule: draft.rrule,
         visibility: "busy",
         location: null,
+        attendees: [],
       },
     });
   };
@@ -332,6 +334,7 @@ export function CalendarPage() {
         rrule: null,
         visibility: "busy",
         location: null,
+        attendees: [],
       },
     });
   };

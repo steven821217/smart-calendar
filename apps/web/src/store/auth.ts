@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api, setToken, type Me, type WorkspaceChoice } from "@/lib/api";
 
 const TOKEN_KEY = "scal.token";
+const REFRESH_TOKEN_KEY = "scal.refreshToken";
 
 interface AuthState {
   token: string | null;
@@ -39,16 +40,18 @@ export const useAuth = create<AuthState>((set) => ({
     if ("needs_workspace_selection" in r) {
       return { kind: "choose" as const, workspaces: r.workspaces };
     }
-    setToken(r.access_token);
+    setToken(r.access_token, r.refresh_token);
     localStorage.setItem(TOKEN_KEY, r.access_token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, r.refresh_token);
     set({ token: r.access_token, me: r.me });
     return { kind: "ok" as const };
   },
 
   switchWorkspace: async (workspaceId: string) => {
     const r = await api.switchWorkspace(workspaceId);
-    setToken(r.access_token);
+    setToken(r.access_token, r.refresh_token);
     localStorage.setItem(TOKEN_KEY, r.access_token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, r.refresh_token);
     set({ token: r.access_token, me: r.me });
   },
 
@@ -56,8 +59,9 @@ export const useAuth = create<AuthState>((set) => ({
     // 帶瀏覽器時區，讓新工作區的行程時間一開始就顯示正確
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const r = await api.createWorkspace(name, timezone);
-    setToken(r.access_token);
+    setToken(r.access_token, r.refresh_token);
     localStorage.setItem(TOKEN_KEY, r.access_token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, r.refresh_token);
     set({ token: r.access_token, me: r.me });
   },
 
@@ -65,32 +69,36 @@ export const useAuth = create<AuthState>((set) => ({
     // 帶瀏覽器時區，讓新帳號的行程時間一開始就顯示正確
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const r = await api.register({ ...input, timezone });
-    setToken(r.access_token);
+    setToken(r.access_token, r.refresh_token);
     localStorage.setItem(TOKEN_KEY, r.access_token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, r.refresh_token);
     set({ token: r.access_token, me: r.me });
   },
 
   logout: () => {
-    setToken(null);
+    setToken(null, null);
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     set({ token: null, me: null });
   },
 
   // 重新整理後：從 localStorage 還原 token 並向 /me 驗證。
   bootstrap: async () => {
     const t = localStorage.getItem(TOKEN_KEY);
+    const r = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!t) {
       set({ loading: false });
       return;
     }
-    setToken(t);
+    setToken(t, r);
     try {
       const me = await api.me();
       set({ token: t, me, loading: false });
     } catch {
       // token 失效 → 清除
-      setToken(null);
+      setToken(null, null);
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       set({ token: null, me: null, loading: false });
     }
   },

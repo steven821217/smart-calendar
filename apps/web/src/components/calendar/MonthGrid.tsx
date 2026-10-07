@@ -163,10 +163,10 @@ export function MonthGrid({
                     className={cn(
                       "flex min-h-6 w-full items-center gap-1.5 truncate rounded-md border border-transparent px-1.5 py-1 text-left text-xs leading-none transition-colors",
                       occurrence.source === "agent"
-                        ? "border-violet-500/25 bg-violet-500/10 text-foreground hover:bg-violet-500/15"
+                        ? "border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium hover:bg-violet-500/15"
                         : occurrence.is_exception
-                          ? "border-border bg-accent text-accent-foreground"
-                          : "bg-primary/10 text-foreground hover:bg-primary/15",
+                          ? "border-border bg-accent text-accent-foreground font-medium"
+                          : "border-primary/20 bg-primary/10 text-primary font-medium hover:bg-primary/20 hover:border-primary/30",
                     )}
                   >
                     {occurrence.source === "agent" && <Sparkles className="h-3 w-3 shrink-0 text-violet-500" aria-label="AI 助理排程" />}

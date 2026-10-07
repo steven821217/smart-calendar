@@ -40,7 +40,7 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
         )}
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-4">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[#A61C4B] text-primary-foreground shadow-md ring-1 ring-primary/20">
             <Calendar className="h-4 w-4" aria-hidden />
           </span>
           <span className="font-semibold tracking-tight">智慧日曆</span>
@@ -49,17 +49,17 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
           </Button>
         </div>
         <nav className="space-y-1 p-3 text-sm" aria-label="主要導覽">
-          <a href="#/calendar" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md bg-accent px-3 font-medium text-accent-foreground">
+          <a href="#/calendar" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md bg-accent px-3 font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent/80 hover:translate-x-0.5">
             <Calendar className="h-4 w-4" aria-hidden />
             日曆
           </a>
           {(me?.role === "admin" || me?.role === "scheduler") && (
-            <a href="#/groups" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md px-3 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+            <a href="#/groups" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md px-3 text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground hover:translate-x-0.5">
               <Users className="h-4 w-4" aria-hidden />
               團隊群組
             </a>
           )}
-          <a href="#/settings/agents" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md px-3 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+          <a href="#/settings/agents" onClick={closeNav} className="flex h-9 items-center gap-2.5 rounded-md px-3 text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground hover:translate-x-0.5">
             <Bot className="h-4 w-4" aria-hidden />
             {me?.role === "admin" ? "Agent 管理" : "我的 AI agent"}
           </a>

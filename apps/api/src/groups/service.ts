@@ -40,13 +40,14 @@ export interface WorkspaceMemberRow {
   user_id: string;
   display_name: string;
   role: string;
+  email: string;
 }
 
 /** 列本 workspace 全部成員（含 user_id，供群組成員挑選器使用）。 */
 export async function listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberRow[]> {
   return withWorkspace(workspaceId, async (c) => {
     const r = await c.query(
-      `SELECT m.id AS membership_id, u.id AS user_id, u.display_name, m.role
+      `SELECT m.id AS membership_id, u.id AS user_id, u.display_name, m.role, u.email
          FROM memberships m
          JOIN users u ON u.id = m.user_id
         WHERE m.status = 'active'

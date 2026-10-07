@@ -110,10 +110,10 @@ export function WeekGrid({ anchor, tz, occurrences, onEventClick }: Props) {
                 className={cn(
                   "overflow-hidden rounded px-1 py-0.5 text-left text-xs leading-tight border",
                   p.occ.source === "agent"
-                    ? "bg-violet-500/15 text-foreground border-violet-500/30 hover:bg-violet-500/25"
+                    ? "bg-violet-500/15 text-violet-800 dark:text-violet-300 border-violet-500/30 hover:bg-violet-500/25"
                     : p.occ.is_exception
-                      ? "bg-accent text-accent-foreground border-primary/20 hover:bg-primary/25"
-                      : "bg-primary/15 text-foreground border-primary/20 hover:bg-primary/25",
+                      ? "bg-accent text-accent-foreground border-primary/20 hover:bg-primary/20"
+                      : "bg-primary/15 text-primary border-primary/20 hover:bg-primary/20",
                 )}
               >
                 <div className="flex items-center gap-1 truncate font-medium">

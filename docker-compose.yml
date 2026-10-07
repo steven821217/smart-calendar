@@ -114,7 +114,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    expose: ["5432"]
+    ports:
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: redis:7
@@ -126,14 +127,16 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    expose: ["6379"]
+    ports:
+      - "127.0.0.1:6379:6379"
 
   opa:
     image: openpolicyagent/opa:latest-static
     command: ["run", "--server", "--addr", "0.0.0.0:8181", "/policies"]
     volumes:
       - ./policies:/policies:ro
-    expose: ["8181"]
+    ports:
+      - "127.0.0.1:8181:8181"
 
   mailhog:
     image: mailhog/mailhog

@@ -65,8 +65,9 @@ export function RecentEvents() {
                 <a
                   href="#/calendar"
                   className={cn(
-                    "block rounded-md px-2 py-1.5 text-xs hover:bg-accent",
+                    "block rounded-md px-2 py-1.5 text-xs transition-all hover:bg-accent hover:shadow-sm hover:translate-x-0.5",
                     when === "past" && "opacity-55",
+                    when === "today" && "border-l-2 border-primary bg-primary/5",
                   )}
                 >
                   <div className="flex items-center gap-1 font-medium text-foreground">

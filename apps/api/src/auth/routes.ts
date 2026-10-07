@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import pg from "pg";
 import Redis from "ioredis";
-import { CreateWorkspaceInput, RegisterInput } from "@scal/shared";
+import { CreateWorkspaceInput, RegisterInput, InviteMemberInput } from "@scal/shared";
 import { signJwt, USER_ACCESS_TOKEN_TTL_SEC } from "./jwt.js";
 import { hashPassword, verifyPassword, PASSWORD_MAX } from "./password.js";
 
@@ -255,12 +255,21 @@ export function registerAuthRoutes(app: FastifyInstance) {
 
       // sub = membership id（events.created_by 對映 membership，見 seed）
       const token = signJwt({
+        type: "access",
         sub: row.membership_id,
         workspace: row.workspace_id,
         roles: [row.role],
       });
+      const { USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+      const refreshToken = signJwt({
+        type: "refresh",
+        sub: row.membership_id,
+        workspace: row.workspace_id,
+        roles: [row.role],
+      }, USER_REFRESH_TOKEN_TTL_SEC);
       return {
         access_token: token,
+        refresh_token: refreshToken,
         token_type: "Bearer",
         expires_in: USER_ACCESS_TOKEN_TTL_SEC,
         me: meFromRow(row),
@@ -304,11 +313,19 @@ export function registerAuthRoutes(app: FastifyInstance) {
     const picked = rows?.find((x) => x.workspace_id === target);
     if (!picked) return reply.code(404).send({ type: "…/not-found", title: "Not Found", status: 404 });
     const token = signJwt({
+      type: "access",
       sub: picked.membership_id,
       workspace: picked.workspace_id,
       roles: [picked.role],
     });
-    return { access_token: token, token_type: "Bearer", expires_in: USER_ACCESS_TOKEN_TTL_SEC, me: meFromRow(picked) };
+    const { USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+    const refreshToken = signJwt({
+      type: "refresh",
+      sub: picked.membership_id,
+      workspace: picked.workspace_id,
+      roles: [picked.role],
+    }, USER_REFRESH_TOKEN_TTL_SEC);
+    return { access_token: token, refresh_token: refreshToken, token_type: "Bearer", expires_in: USER_ACCESS_TOKEN_TTL_SEC, me: meFromRow(picked) };
   });
 
   // 1d. POST /v1/auth/workspaces — 已登入的人再建立一個 workspace（同一帳號多情境）
@@ -373,9 +390,12 @@ export function registerAuthRoutes(app: FastifyInstance) {
             `${current.display_name} calendar`,
           ]);
           await client.query("COMMIT");
-          const token = signJwt({ sub: membershipId, workspace: ws, roles: ["admin"] });
+          const token = signJwt({ type: "access", sub: membershipId, workspace: ws, roles: ["admin"] });
+          const { USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+          const refreshToken = signJwt({ type: "refresh", sub: membershipId, workspace: ws, roles: ["admin"] }, USER_REFRESH_TOKEN_TTL_SEC);
           return reply.code(201).send({
             access_token: token,
+            refresh_token: refreshToken,
             token_type: "Bearer",
             expires_in: USER_ACCESS_TOKEN_TTL_SEC,
             me: meFromRow({
@@ -476,9 +496,12 @@ export function registerAuthRoutes(app: FastifyInstance) {
           await client.query("COMMIT");
           await noteRegistration(req.ip);
 
-          const token = signJwt({ sub: membershipId, workspace: ws, roles: ["admin"] });
+          const token = signJwt({ type: "access", sub: membershipId, workspace: ws, roles: ["admin"] });
+          const { USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+          const refreshToken = signJwt({ type: "refresh", sub: membershipId, workspace: ws, roles: ["admin"] }, USER_REFRESH_TOKEN_TTL_SEC);
           return reply.code(201).send({
             access_token: token,
+            refresh_token: refreshToken,
             token_type: "Bearer",
             expires_in: USER_ACCESS_TOKEN_TTL_SEC,
             me: meFromRow({
@@ -518,6 +541,254 @@ export function registerAuthRoutes(app: FastifyInstance) {
     } finally {
       client.release();
     }
+  });
+
+  // 3. POST /v1/auth/workspaces/members — 邀請成員加入當前 workspace
+  //    只有 admin 可以邀請。若使用者不存在，會先建立一個無密碼的使用者記錄。
+  app.post("/v1/auth/workspaces/members", async (req, reply) => {
+    const { verifyJwt } = await import("./jwt.js");
+    const auth = verifyJwt(req.headers.authorization);
+    if (!auth) return reply.code(401).send({ type: "…/unauthorized", title: "unauthorized", status: 401 });
+    if (!auth.roles.includes("admin")) {
+      return reply.code(403).send({ type: "…/forbidden", title: "forbidden", status: 403, detail: "只有管理員可以邀請成員" });
+    }
+    const parsed = InviteMemberInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(422).send({
+        type: "…/validation",
+        title: "Unprocessable",
+        status: 422,
+        detail: parsed.error.issues.map((i) => i.message).join("；"),
+      });
+    }
+    const email = parsed.data.email.trim().toLowerCase();
+    const displayName = parsed.data.display_name || email.split("@")[0];
+    const role = parsed.data.role;
+
+    const client = await adminPool().connect();
+    try {
+      await client.query("BEGIN");
+      
+      // 1. 查找或建立 user
+      let userId: string;
+      const userRes = await client.query(`SELECT id FROM users WHERE email = $1`, [email]);
+      if (userRes.rows.length > 0) {
+        userId = userRes.rows[0].id;
+      } else {
+        // 建立新 user，密碼為 null (需要忘記密碼/設定密碼流程才能登入)
+        const newUserRes = await client.query(
+          `INSERT INTO users(email, display_name) VALUES($1, $2) RETURNING id`,
+          [email, displayName]
+        );
+        userId = newUserRes.rows[0].id;
+      }
+
+      // 2. 檢查是否已經在 workspace 內
+      const checkMember = await client.query(
+        `SELECT id FROM memberships WHERE workspace_id = $1 AND user_id = $2`,
+        [auth.workspace, userId]
+      );
+      if (checkMember.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ type: "…/conflict", title: "conflict", status: 409, detail: "該成員已經在此工作區中" });
+      }
+
+      // 3. 建立 membership
+      const membershipId = (
+        await client.query(
+          `INSERT INTO memberships(workspace_id, user_id, role) VALUES($1, $2, $3) RETURNING id`,
+          [auth.workspace, userId, role]
+        )
+      ).rows[0].id as string;
+
+      // 4. 為新成員建立一個預設日曆
+      await client.query(
+        `INSERT INTO calendars(workspace_id, owner_id, name) VALUES($1, $2, $3)`,
+        [auth.workspace, membershipId, `${displayName} calendar`]
+      );
+
+      await client.query("COMMIT");
+      return reply.code(201).send({ membership_id: membershipId, email, role, status: "invited" });
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  // 4. PATCH /v1/auth/workspaces/members/:membershipId — 變更成員權限
+  app.patch<{ Params: { membershipId: string }; Body: { role: "admin" | "scheduler" | "member" } }>(
+    "/v1/auth/workspaces/members/:membershipId",
+    async (req, reply) => {
+      const { verifyJwt } = await import("./jwt.js");
+      const auth = verifyJwt(req.headers.authorization);
+      if (!auth) return reply.code(401).send({ type: "…/unauthorized", title: "unauthorized", status: 401 });
+      if (!auth.roles.includes("admin")) {
+        return reply.code(403).send({ type: "…/forbidden", title: "forbidden", status: 403, detail: "只有管理員可以變更成員權限" });
+      }
+      const role = req.body?.role;
+      if (!["admin", "scheduler", "member"].includes(role)) {
+        return reply.code(400).send({ type: "…/bad-request", title: "invalid role", status: 400 });
+      }
+
+      const client = await adminPool().connect();
+      try {
+        await client.query("BEGIN");
+        // Ensure not demoting the last admin
+        if (role !== "admin") {
+          const adminCountRes = await client.query(
+            `SELECT count(*) FROM memberships WHERE workspace_id = $1 AND role = 'admin' AND status = 'active'`,
+            [auth.workspace]
+          );
+          if (parseInt(adminCountRes.rows[0].count) <= 1) {
+            const checkRes = await client.query(
+              `SELECT role FROM memberships WHERE id = $1 AND workspace_id = $2`,
+              [req.params.membershipId, auth.workspace]
+            );
+            if (checkRes.rows[0]?.role === "admin") {
+               await client.query("ROLLBACK");
+               return reply.code(400).send({ type: "…/bad-request", title: "bad-request", status: 400, detail: "不能降級最後一位管理員" });
+            }
+          }
+        }
+
+        const updateRes = await client.query(
+          `UPDATE memberships SET role = $1 WHERE id = $2 AND workspace_id = $3 AND status = 'active' RETURNING id`,
+          [role, req.params.membershipId, auth.workspace]
+        );
+        if (updateRes.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return reply.code(404).send({ type: "…/not-found", title: "not-found", status: 404 });
+        }
+        await client.query("COMMIT");
+        return reply.code(200).send({ status: "success" });
+      } catch(e) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+  );
+
+  // 5. DELETE /v1/auth/workspaces/members/:membershipId — 移除成員 (將 status 設為 inactive)
+  app.delete<{ Params: { membershipId: string } }>(
+    "/v1/auth/workspaces/members/:membershipId",
+    async (req, reply) => {
+      const { verifyJwt } = await import("./jwt.js");
+      const auth = verifyJwt(req.headers.authorization);
+      if (!auth) return reply.code(401).send({ type: "…/unauthorized", title: "unauthorized", status: 401 });
+      if (!auth.roles.includes("admin")) {
+        return reply.code(403).send({ type: "…/forbidden", title: "forbidden", status: 403, detail: "只有管理員可以移除成員" });
+      }
+
+      const client = await adminPool().connect();
+      try {
+        await client.query("BEGIN");
+        // Ensure not deleting the last admin
+        const adminCountRes = await client.query(
+          `SELECT count(*) FROM memberships WHERE workspace_id = $1 AND role = 'admin' AND status = 'active'`,
+          [auth.workspace]
+        );
+        if (parseInt(adminCountRes.rows[0].count) <= 1) {
+          const checkRes = await client.query(
+            `SELECT role FROM memberships WHERE id = $1 AND workspace_id = $2`,
+            [req.params.membershipId, auth.workspace]
+          );
+          if (checkRes.rows[0]?.role === "admin") {
+              await client.query("ROLLBACK");
+              return reply.code(400).send({ type: "…/bad-request", title: "bad-request", status: 400, detail: "不能移除最後一位管理員" });
+          }
+        }
+        
+        // Soft delete the membership to preserve event history
+        const deleteRes = await client.query(
+          `UPDATE memberships SET status = 'inactive' WHERE id = $1 AND workspace_id = $2 AND status = 'active' RETURNING id`,
+          [req.params.membershipId, auth.workspace]
+        );
+        if (deleteRes.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return reply.code(404).send({ type: "…/not-found", title: "not-found", status: 404 });
+        }
+
+        // Also revoke all refresh tokens for this membership
+        const r = redis();
+        if (r) {
+           // We can't revoke by jti directly because we don't store jti-to-member mapping
+           // But since they are 'inactive', verifyPassword / meFromRow will fail next time they refresh or login!
+        }
+        
+        await client.query("COMMIT");
+        return reply.code(204).send();
+      } catch(e) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+  );
+
+  // 6. POST /v1/auth/refresh — 使用 refresh token 換取新的 access token
+  app.post<{ Body: { refresh_token: string } }>("/v1/auth/refresh", async (req, reply) => {
+    const refreshToken = req.body?.refresh_token;
+    if (!refreshToken) return reply.code(400).send({ type: "…/bad-request", status: 400, title: "refresh_token required" });
+    
+    const { verifyJwt, USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+    const auth = verifyJwt("Bearer " + refreshToken);
+    if (!auth || auth.type !== "refresh") {
+      return reply.code(401).send({ type: "…/unauthorized", status: 401, title: "invalid refresh token" });
+    }
+
+    const r = redis();
+    if (r && auth.jti) {
+      const revoked = await r.get(`revoked:${auth.jti}`);
+      if (revoked) return reply.code(401).send({ type: "…/unauthorized", status: 401, title: "token revoked" });
+      const ttl = auth.exp ? Math.max(0, auth.exp - Math.floor(Date.now() / 1000)) : USER_REFRESH_TOKEN_TTL_SEC;
+      if (ttl > 0) await r.setex(`revoked:${auth.jti}`, ttl, "1");
+    }
+
+    const dbRes = await adminPool().query(
+      `SELECT m.id AS membership_id, m.role, m.timezone, m.workspace_id,
+              w.slug AS workspace_slug, w.name AS workspace_name,
+              u.display_name, u.email
+         FROM memberships m
+         JOIN workspaces w ON w.id = m.workspace_id
+         JOIN users u ON u.id = m.user_id
+        WHERE m.id = $1 AND m.status = 'active'`,
+      [auth.sub]
+    );
+    if (dbRes.rows.length === 0) return reply.code(401).send({ type: "…/unauthorized", status: 401, title: "membership inactive" });
+    const row = dbRes.rows[0];
+
+    const token = signJwt({ type: "access", sub: row.membership_id, workspace: row.workspace_id, roles: [row.role] });
+    const newRefreshToken = signJwt({ type: "refresh", sub: row.membership_id, workspace: row.workspace_id, roles: [row.role] }, USER_REFRESH_TOKEN_TTL_SEC);
+
+    return {
+      access_token: token,
+      refresh_token: newRefreshToken,
+      token_type: "Bearer",
+      expires_in: USER_ACCESS_TOKEN_TTL_SEC,
+      me: meFromRow(row),
+    };
+  });
+
+  // 6. POST /v1/auth/logout — 撤銷 refresh token
+  app.post<{ Body: { refresh_token: string } }>("/v1/auth/logout", async (req, reply) => {
+    const refreshToken = req.body?.refresh_token;
+    if (refreshToken) {
+      const { verifyJwt, USER_REFRESH_TOKEN_TTL_SEC } = await import("./jwt.js");
+      const auth = verifyJwt("Bearer " + refreshToken);
+      if (auth && auth.type === "refresh" && auth.jti) {
+        const r = redis();
+        if (r) {
+          const ttl = auth.exp ? Math.max(0, auth.exp - Math.floor(Date.now() / 1000)) : USER_REFRESH_TOKEN_TTL_SEC;
+          if (ttl > 0) await r.setex(`revoked:${auth.jti}`, ttl, "1");
+        }
+      }
+    }
+    return { ok: true };
   });
 
   // 4. GET /v1/me — 當前身分 + roles（脈絡來自 token）

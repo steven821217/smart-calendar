@@ -33,6 +33,7 @@ export type LoginOutcome = LoginResult | { needs_workspace_selection: true; work
 
 export interface LoginResult {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   expires_in: number;
   me: Me;
@@ -125,8 +126,12 @@ export class ApiError extends Error {
 }
 
 let _token: string | null = null;
-export function setToken(t: string | null) {
+let _refreshToken: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
+
+export function setToken(t: string | null, r?: string | null) {
   _token = t;
+  if (r !== undefined) _refreshToken = r;
 }
 export function getToken() {
   return _token;
@@ -152,8 +157,39 @@ async function request<T>(
   // 僅清除送出此請求時所用、且目前仍有效的同一張 token。
   // 這可避免舊請求較晚回 401 時誤清掉使用者剛重新登入取得的新 token。
   if (res.status === 401 && tokenForRequest && _token === tokenForRequest) {
-    setToken(null);
+    if (_refreshToken) {
+      if (!refreshPromise) {
+        refreshPromise = fetch(`${BASE}/v1/auth/refresh`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ refresh_token: _refreshToken }),
+        })
+          .then(async (r) => {
+            if (r.ok) {
+              const data = await r.json();
+              setToken(data.access_token, data.refresh_token);
+              localStorage.setItem("scal.token", data.access_token);
+              localStorage.setItem("scal.refreshToken", data.refresh_token);
+              return true;
+            }
+            return false;
+          })
+          .catch(() => false)
+          .finally(() => {
+            refreshPromise = null;
+          });
+      }
+
+      const refreshed = await refreshPromise;
+      if (refreshed) {
+        // refresh 成功，重試原請求
+        return request<T>(method, path, opts);
+      }
+    }
+    
+    setToken(null, null);
     localStorage.removeItem("scal.token");
+    localStorage.removeItem("scal.refreshToken");
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
 
@@ -202,13 +238,23 @@ export const api = {
   }) =>
     request<{ authorization_code: string; expires_in: number }>("POST", "/v1/oauth/consent", { body }),
 
-  /** 把「已註冊」的人以 email 加入本工作區（admin）。 */
+  /** 邀請新成員加入本工作區（自動幫未註冊者建立帳號）。 */
   addWorkspaceMember: (email: string, role: "admin" | "scheduler" | "member") =>
-    request<{ membership_id: string; user_id: string; display_name: string; role: string }>(
+    request<{ status: string; email: string; role: string; membership_id?: string; user_id?: string }>(
       "POST",
-      "/v1/members",
-      { body: { email, role, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
+      "/v1/auth/workspaces/members",
+      { body: { email, role, display_name: email.split("@")[0] } },
     ),
+  /** 變更工作區成員權限（僅管理員）。 */
+  updateWorkspaceMemberRole: (membershipId: string, role: "admin" | "scheduler" | "member") =>
+    request<{ status: string }>(
+      "PATCH",
+      `/v1/auth/workspaces/members/${membershipId}`,
+      { body: { role } },
+    ),
+  /** 將成員從工作區移除（軟刪除，僅管理員）。 */
+  removeWorkspaceMember: (membershipId: string) =>
+    request<void>("DELETE", `/v1/auth/workspaces/members/${membershipId}`),
   /** 自助註冊：建立新 workspace（註冊者為 admin），成功即回 token（自動登入）。 */
   register: (body: {
     email: string;
@@ -421,4 +467,5 @@ export interface WorkspaceMember {
   user_id: string;
   display_name: string;
   role: string;
+  email: string;
 }
